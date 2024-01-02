@@ -7,3 +7,4 @@ edition = "2021"
 screenshots = "0.8.6"
 winapi = {version = "0.3", features = ["winuser", "libloaderapi", "processthreadsapi", "tlhelp32"]}
 minifb = "0.25"
+lazy_static = "1.4.0"
