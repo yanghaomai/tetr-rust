@@ -1,6 +1,7 @@
+use lazy_static::lazy_static;
 use screenshots::image::Rgba;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
 pub enum TetrColr {
     Purple,
     Red,
@@ -119,5 +120,9 @@ mod tests {
 
         let t = Rgba([1, 2, 1, 255]);
         assert_eq!(get_color(&t).unwrap(), TetrColr::Black);
+
+        for x in COLR_ARR.iter().enumerate() {
+            assert_eq!(x.0, x.1.c as usize);
+        }
     }
 }

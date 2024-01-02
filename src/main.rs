@@ -35,10 +35,12 @@ mod colr;
 mod constants;
 mod pic;
 mod screen;
+mod tetr;
 use colr::*;
 use constants::*;
 use pic::*;
 use screen::*;
+use tetr::*;
 
 enum CtrlInfo {
     Start,
@@ -106,11 +108,17 @@ fn kb_func() {
     println!("KBHandler exit");
 }
 
-fn get_all_possible(bits: &Vec<Vec<bool>>, next_colr: TetrColr) -> Vec<(Vec<Vec<bool>>, u32, u32)> {
+fn get_all_possible(
+    bits: &Vec<Vec<bool>>,
+    next_colr: TetrColr,
+) -> Vec<(Vec<BitsRowDes>, u32, u32)> {
     let mut all_possible = Vec::new();
+
+    let brd = bits2RowDes(bits);
+
     for rot_idx in 0..3u32 {
         for pos_idx in 0..XCNT {
-            let mut mbits = bits.clone();
+            let mut mbits = brd.clone();
 
             all_possible.push((mbits, rot_idx, pos_idx));
         }
