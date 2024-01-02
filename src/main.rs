@@ -111,22 +111,64 @@ fn kb_func() {
 fn get_all_possible(
     bits: &Vec<Vec<bool>>,
     next_colr: TetrColr,
-) -> Vec<(Vec<BitsRowDes>, u32, u32)> {
+) -> Vec<(Vec<BitsRowDes>, usize, usize)> {
     let mut all_possible = Vec::new();
 
-    let brd = bits2RowDes(bits);
+    let brd = bits2rowdes(bits);
 
-    for rot_idx in 0..3u32 {
-        for pos_idx in 0..XCNT {
-            let mut mbits = brd.clone();
-
-            all_possible.push((mbits, rot_idx, pos_idx));
+    for rot_idx in 0..3usize {
+        for pos_idx in 0..XCNT as usize {
+            let mbits = block_add(&brd, next_colr, rot_idx, pos_idx);
+            if mbits.is_none() {
+                continue;
+            } else {
+                all_possible.push((mbits.unwrap(), rot_idx, pos_idx));
+            }
         }
     }
     all_possible
 }
-fn get_best(bits: &Vec<Vec<bool>>, next_colr: TetrColr) {
+
+fn get_best(bits: &Vec<Vec<bool>>, next_colr: TetrColr) -> (usize, usize) {
     let ap = get_all_possible(bits, next_colr);
+
+    #[derive(PartialEq, Eq)]
+    struct ApDes {
+        idx: usize,
+        hole_cnt: u32,
+        max_h: u32,
+    }
+    impl Ord for ApDes {
+        fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+            // 首先按照年龄排序
+            self.hole_cnt
+                .cmp(&other.hole_cnt)
+                .then(self.max_h.cmp(&other.max_h))
+        }
+    }
+
+    impl PartialOrd for ApDes {
+        fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+            Some(self.cmp(other))
+        }
+    }
+    let mut ap_des = Vec::new();
+    for x in ap.iter().enumerate() {
+        let mut hole_cnt = 0;
+        let mut max_h = x.1 .0[0].len;
+        for y in x.1 .0.iter() {
+            hole_cnt += y.len - y.cnt;
+            max_h = max_h.max(y.len);
+        }
+        ap_des.push(ApDes {
+            idx: x.0,
+            hole_cnt,
+            max_h,
+        });
+    }
+    ap_des.sort_unstable();
+    let tmp = &ap[ap_des[0].idx];
+    (tmp.1, tmp.2)
 }
 
 fn start_game(width: u32, height: u32, rx: &Receiver<CtrlInfo>) {
@@ -162,7 +204,22 @@ fn start_game(width: u32, height: u32, rx: &Receiver<CtrlInfo>) {
         }
         //print_img_bits(img, bits, cx, cy, len);
 
-        get_best(&bits, next_colr);
+        let (rot_idx, pos_idx) = get_best(&bits, next_colr);
+
+        // do rot
+        match rot_idx {
+            0 => (),
+            1 => {
+                key_updown(b'd');
+            }
+            2 => {
+                key_updown(b'w');
+            }
+            3 => {
+                key_updown(b'a');
+            }
+            _ => panic!(),
+        }
     }
     println!("QUIT GAME");
 }

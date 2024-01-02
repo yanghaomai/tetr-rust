@@ -1,10 +1,14 @@
-use std::mem;
+use lazy_static::lazy_static;
+use std::{collections::HashMap, mem, thread::sleep, time::Duration};
 
 use minifb::{Key, Window, WindowOptions};
 use screenshots::image::{Pixel, Rgba, RgbaImage};
 use winapi::{
-    shared::windef::POINT,
-    um::winuser::{self, GetCursorPos},
+    shared::{minwindef::DWORD, windef::POINT},
+    um::{
+        winnt::{KEY_ENUMERATE_SUB_KEYS, SHORT},
+        winuser::{self, keybd_event, GetCursorPos, VkKeyScanA, KEYEVENTF_KEYUP},
+    },
 };
 
 use crate::constants::*;
@@ -65,4 +69,36 @@ pub fn print_img_bits(img: RgbaImage, bits: Vec<Vec<bool>>, cx: u32, cy: u32, le
         }
     }
     print_img(&img);
+}
+
+lazy_static! {
+    static ref KEY_NAMES: HashMap<u8, SHORT> = {
+        let mut ret = HashMap::new();
+        for i in 32u8..128u8 {
+            ret.insert(i, unsafe { VkKeyScanA(i as i8) });
+        }
+        ret
+    };
+}
+
+fn key_down(key: u8) {
+    let vk = KEY_NAMES.get(&key).unwrap();
+    let vk = vk % 0x100;
+    unsafe {
+        keybd_event(vk as u8, 0, 0x0000 as DWORD, 0);
+    }
+}
+
+fn key_up(key: u8) {
+    let vk = KEY_NAMES.get(&key).unwrap();
+    let vk = vk % 0x100;
+    unsafe {
+        keybd_event(vk as u8, 0, KEYEVENTF_KEYUP, 0);
+    }
+}
+
+pub fn key_updown(key: u8) {
+    key_down(key);
+    sleep(Duration::from_millis(50));
+    key_up(key);
 }

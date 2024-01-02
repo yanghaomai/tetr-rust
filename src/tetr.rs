@@ -84,12 +84,66 @@ lazy_static! {
 
 #[derive(Clone)]
 pub struct BitsRowDes {
-    len: u32,
-    cnt: u32,
+    pub len: u32,
+    pub cnt: u32,
 }
 
-pub fn bits2RowDes(bits: &Vec<Vec<bool>>) -> Vec<BitsRowDes> {
-    Vec::new()
+pub fn bits2rowdes(bits: &Vec<Vec<bool>>) -> Vec<BitsRowDes> {
+    let mut ret = Vec::new();
+    let c = bits[0].len();
+    let r = bits.len();
+    for i in 0..c {
+        let mut first_fill = None;
+        let mut fill_cnt = 0;
+        for j in 0..r {
+            if bits[j][i] {
+                if first_fill == None {
+                    first_fill = Some(j);
+                }
+                fill_cnt += 1;
+            }
+        }
+        ret.push(BitsRowDes {
+            len: match first_fill {
+                None => 0,
+                Some(x) => (r - x) as u32,
+            },
+            cnt: fill_cnt,
+        });
+    }
+    ret
+}
+
+pub fn block_add(
+    mbits: &Vec<BitsRowDes>,
+    c: TetrColr,
+    rot_idx: usize,
+    pos_idx: usize,
+) -> Option<Vec<BitsRowDes>> {
+    assert!(rot_idx < 4);
+    assert!((pos_idx as usize) < mbits.len());
+
+    let col_des = &COLR2BLK.get(&c).unwrap().rots[rot_idx];
+    let blk_cols = col_des.col.len();
+    if blk_cols + pos_idx > mbits.len() {
+        return None;
+    }
+    let mut max_h = None;
+    for i in 0..blk_cols {
+        let col_pos = pos_idx + i;
+        if mbits[col_pos].len >= col_des.col[i].0 {
+            max_h = Some(mbits[col_pos].len - col_des.col[i].0);
+        }
+    }
+
+    let mut mbits = mbits.clone();
+    let max_h = max_h.unwrap();
+    for i in 0..blk_cols {
+        let col_pos = pos_idx + i;
+        mbits[col_pos].cnt += col_des.col[i].1;
+        mbits[col_pos].len = max_h + col_des.col[i].0 + col_des.col[i].1;
+    }
+    Some(mbits)
 }
 
 #[cfg(test)]
