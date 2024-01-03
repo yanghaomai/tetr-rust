@@ -98,6 +98,7 @@ lazy_static! {
                 sp = get_clock_rot90(&sp);
             }
             let pos_vec: Result<[i32; 4], _> = s.1 .0.clone().try_into();
+            //println!("{:?} {:?}", s.0, rots);
             mp.insert(
                 s.0,
                 TetrBlk {
@@ -156,7 +157,7 @@ pub fn block_add(
     c: TetrColr,
     rot_idx: usize,
     pos_idx: usize,
-) -> Option<Vec<BitsRowDes>> {
+) -> Option<(Vec<BitsRowDes>, u32)> {
     assert!(rot_idx < 4);
     assert!((pos_idx as usize) < mbits.len());
 
@@ -188,7 +189,7 @@ pub fn block_add(
         //println!("AFTER {:?}", mbits[col_pos]);
         assert!(mbits[col_pos].len >= mbits[col_pos].cnt);
     }
-    Some(mbits)
+    Some((mbits, max_h))
 }
 
 #[cfg(test)]

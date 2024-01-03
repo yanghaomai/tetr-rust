@@ -3,7 +3,7 @@ use crate::constants::*;
 use crate::screen::print_img;
 use screenshots::image::{Pixel, Rgba, RgbaImage};
 
-pub fn get_len(img: &RgbaImage, px: i32, py: i32) -> ((u32, u32), u32) {
+fn get_block_xy_len(img: &RgbaImage, px: i32, py: i32) -> (u32, u32, u32) {
     const XY: [[i32; 2]; 4] = [[0, 1], [0, -1], [1, 0], [-1, 0]];
     let mut xy_min = [px, py];
     let mut xy_max = [px, py];
@@ -27,26 +27,26 @@ pub fn get_len(img: &RgbaImage, px: i32, py: i32) -> ((u32, u32), u32) {
     let b = xy_max[1] - xy_min[1];
 
     //println!("HHH{a} {b}");
-    assert!((a - b).abs() < 2, "{} {a} {b}", (a - b).abs());
-    let mx = (xy_min[0] + xy_max[0]) as u32 / 2 - X_FIX;
-    let my = (xy_min[1] + xy_max[1]) as u32 / 2 - Y_FIX;
-    let len = (a + b) as u32 / 2 + LEN_FIX;
+    if (a - b).abs() >= 4 {
+        println!("WRONG abs");
+        print_img(&img);
+    }
+    assert!((a - b).abs() < 4, "{} {a} {b}", (a - b).abs());
+    let mx = (xy_min[0] + xy_max[0]) as u32 / 2;
+    let my = (xy_min[1] + xy_max[1]) as u32 / 2;
+    let len = (a + b) as u32 / 2;
+    (mx, my, len)
+}
+
+pub fn get_len(img: &RgbaImage, px: i32, py: i32) -> ((u32, u32), u32) {
+    const UP_BLOCK_CNT: u32 = 6;
+    let (mx, my, len) = get_block_xy_len(img, px, py);
+    let (mx1, my1, len1) = get_block_xy_len(img, mx as i32, (my - len * UP_BLOCK_CNT) as i32);
+    let len = (my - my1) / UP_BLOCK_CNT;
 
     if false {
         let mut img = img.clone();
         let wp = *Rgba::from_slice(&[0xff, 0, 0xff, 0xff]);
-        for i in xy_min[0]..=xy_max[0] {
-            for j in 0..2 {
-                *img.get_pixel_mut(i as u32, j + xy_min[1] as u32) = wp;
-                *img.get_pixel_mut(i as u32, j + xy_max[1] as u32) = wp;
-            }
-        }
-        for i in xy_min[1]..=xy_max[1] {
-            for j in 0..2 {
-                *img.get_pixel_mut(j + xy_min[0] as u32, i as u32) = wp;
-                *img.get_pixel_mut(j + xy_max[0] as u32, i as u32) = wp;
-            }
-        }
         for i in 0..XCNT {
             for j in 0..YCNT {
                 let mx = mx + i * len;

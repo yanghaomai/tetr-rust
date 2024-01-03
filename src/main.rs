@@ -108,10 +108,14 @@ fn kb_func() {
     println!("KBHandler exit");
 }
 
-fn get_all_possible(
-    bits: &Vec<Vec<bool>>,
-    next_colr: TetrColr,
-) -> Vec<(Vec<BitsRowDes>, usize, usize)> {
+struct PsbMap {
+    rd: Vec<BitsRowDes>,
+    rot_idx: usize,
+    pos_idx: usize,
+    max_h: u32,
+}
+
+fn get_all_possible(bits: &Vec<Vec<bool>>, next_colr: TetrColr) -> Vec<PsbMap> {
     let mut all_possible = Vec::new();
 
     let brd = bits2rowdes(bits);
@@ -119,17 +123,22 @@ fn get_all_possible(
         assert!(i.cnt <= i.len);
     }*/
 
-    for rot_idx in 0..3usize {
+    for rot_idx in 0..4usize {
         for pos_idx in 0..XCNT as usize {
-            let mbits = block_add(&brd, next_colr, rot_idx, pos_idx);
-            if mbits.is_none() {
+            let add_info = block_add(&brd, next_colr, rot_idx, pos_idx);
+            if add_info.is_none() {
                 continue;
             } else {
-                let mbits = mbits.unwrap();
+                let (mbits, max_h) = add_info.unwrap();
                 /*for i in mbits.iter() {
                     assert!(i.cnt <= i.len);
                 }*/
-                all_possible.push((mbits, rot_idx, pos_idx));
+                all_possible.push(PsbMap {
+                    rd: mbits,
+                    rot_idx,
+                    pos_idx,
+                    max_h,
+                });
             }
         }
     }
@@ -143,6 +152,7 @@ fn get_best(bits: &Vec<Vec<bool>>, next_colr: TetrColr) -> (usize, usize) {
     struct ApDes {
         idx: usize,
         hole_cnt: u32,
+        block_hight: u32,
         max_h: u32,
     }
     impl Ord for ApDes {
@@ -160,24 +170,25 @@ fn get_best(bits: &Vec<Vec<bool>>, next_colr: TetrColr) -> (usize, usize) {
         }
     }
     let mut ap_des = Vec::new();
-    for x in ap.iter().enumerate() {
+    for (idx, x) in ap.iter().enumerate() {
         let mut hole_cnt = 0;
-        let mut max_h = x.1 .0[0].len;
-        for yy in x.1 .0.iter().enumerate() {
+        let mut block_hight = x.rd[0].len;
+        for yy in x.rd.iter().enumerate() {
             let y = yy.1;
             //println!("{} {} {}", y.len, y.cnt, yy.0);
             hole_cnt += y.len - y.cnt;
-            max_h = max_h.max(y.len);
+            block_hight = block_hight.max(y.len);
         }
         ap_des.push(ApDes {
-            idx: x.0,
+            idx,
             hole_cnt,
-            max_h,
+            block_hight,
+            max_h: x.max_h,
         });
     }
     ap_des.sort_unstable();
     let tmp = &ap[ap_des[0].idx];
-    (tmp.1, tmp.2)
+    (tmp.rot_idx, tmp.pos_idx)
 }
 
 fn ascii_to_virtual_key(ascii_char: u8) -> i32 {
@@ -246,7 +257,7 @@ fn start_game(width: u32, height: u32, rx: &Receiver<CtrlInfo>) {
             key_updown(if right_move > 0 { VK_RIGHT } else { VK_LEFT });
         }
         key_updown(VK_SPACE);
-        sleep(Duration::from_millis(5));
+        sleep(Duration::from_millis(500));
         println!("NEXT");
     }
     println!("QUIT GAME");
