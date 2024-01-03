@@ -3,12 +3,14 @@ use std::collections::HashMap;
 use crate::colr::*;
 use lazy_static::lazy_static;
 
+#[derive(Debug)]
 pub struct ColDes {
     rot_id: u32,
     // start, len
     col: Vec<(u32, u32)>,
 }
 pub struct TetrBlk {
+    pos: [i32; 4],
     rots: Vec<ColDes>,
 }
 
@@ -29,11 +31,12 @@ fn get_clock_rot90(bits: &Vec<Vec<i32>>) -> Vec<Vec<i32>> {
 fn get_shape_col(bits: &Vec<Vec<i32>>) -> Vec<(u32, u32)> {
     let mut ret = Vec::new();
     let c = bits[0].len();
-    let r = bits[0].len();
+    let r = bits.len();
     for i in 0..c {
         let mut idx = 0 as u32;
         for j in 0..r {
-            if bits[r - j][i] == 1 {
+            //println!("{} {} {j}", r - j - 1, i);
+            if bits[r - j - 1][i] == 1 {
                 break;
             } else {
                 idx += 1;
@@ -42,7 +45,7 @@ fn get_shape_col(bits: &Vec<Vec<i32>>) -> Vec<(u32, u32)> {
         assert!(r > idx as usize);
         let mut cnt = 0 as u32;
         for j in idx as usize..r {
-            if bits[r - j][i] == 1 {
+            if bits[r - j - 1][i] == 1 {
                 cnt += 1;
             } else {
                 break;
@@ -56,19 +59,37 @@ fn get_shape_col(bits: &Vec<Vec<i32>>) -> Vec<(u32, u32)> {
 lazy_static! {
     static ref COLR2BLK: HashMap<TetrColr, TetrBlk> = {
         let mut shapes = Vec::new();
-        shapes.push((TetrColr::Purple, vec![vec![0, 1, 0], vec![1, 1, 1]]));
-        shapes.push((TetrColr::Red, vec![vec![1, 1, 0], vec![0, 1, 1]]));
-        shapes.push((TetrColr::Cyan, vec![vec![1, 1, 1, 1]]));
-        shapes.push((TetrColr::Blue, vec![vec![1, 0, 0], vec![1, 1, 1]]));
-        shapes.push((TetrColr::Green, vec![vec![0, 1, 1], vec![1, 1, 0]]));
-        shapes.push((TetrColr::Orange, vec![vec![0, 0, 1], vec![1, 1, 1]]));
-        shapes.push((TetrColr::Yellow, vec![vec![1, 1], vec![1, 1]]));
+        shapes.push((
+            TetrColr::Purple,
+            (vec![3, 4, 3, 3], vec![vec![0, 1, 0], vec![1, 1, 1]]),
+        ));
+        shapes.push((
+            TetrColr::Red,
+            (vec![3, 4, 3, 3], vec![vec![1, 1, 0], vec![0, 1, 1]]),
+        ));
+        shapes.push((TetrColr::Cyan, (vec![3, 5, 3, 5], vec![vec![1, 1, 1, 1]])));
+        shapes.push((
+            TetrColr::Blue,
+            (vec![3, 4, 3, 3], vec![vec![1, 0, 0], vec![1, 1, 1]]),
+        ));
+        shapes.push((
+            TetrColr::Green,
+            (vec![3, 4, 3, 3], vec![vec![0, 1, 1], vec![1, 1, 0]]),
+        ));
+        shapes.push((
+            TetrColr::Orange,
+            (vec![3, 4, 3, 3], vec![vec![0, 0, 1], vec![1, 1, 1]]),
+        ));
+        shapes.push((
+            TetrColr::Yellow,
+            (vec![4, 4, 4, 4], vec![vec![1, 1], vec![1, 1]]),
+        ));
 
         let mut mp = HashMap::new();
         for s in shapes.iter() {
             let mut rots = Vec::new();
 
-            let mut sp = s.1.clone();
+            let mut sp = s.1 .1.clone();
             for r in 0..4 {
                 rots.push(ColDes {
                     rot_id: r,
@@ -76,13 +97,29 @@ lazy_static! {
                 });
                 sp = get_clock_rot90(&sp);
             }
-            mp.insert(s.0, TetrBlk { rots });
+            let pos_vec: Result<[i32; 4], _> = s.1 .0.clone().try_into();
+            mp.insert(
+                s.0,
+                TetrBlk {
+                    rots,
+                    pos: pos_vec.unwrap(),
+                },
+            );
         }
         mp
     };
 }
 
-#[derive(Clone)]
+pub fn tetr_init_static() {
+    lazy_static::initialize(&COLR2BLK);
+}
+
+pub fn get_start_pos(c: TetrColr, rot_idx: usize) -> i32 {
+    let a = COLR2BLK.get(&c).unwrap();
+    a.pos[rot_idx]
+}
+
+#[derive(Clone, Debug)]
 pub struct BitsRowDes {
     pub len: u32,
     pub cnt: u32,
@@ -132,7 +169,11 @@ pub fn block_add(
     for i in 0..blk_cols {
         let col_pos = pos_idx + i;
         if mbits[col_pos].len >= col_des.col[i].0 {
-            max_h = Some(mbits[col_pos].len - col_des.col[i].0);
+            if max_h.is_none() {
+                max_h = Some(mbits[col_pos].len - col_des.col[i].0);
+            } else {
+                max_h = Some(max_h.unwrap().max(mbits[col_pos].len - col_des.col[i].0));
+            }
         }
     }
 
@@ -140,8 +181,12 @@ pub fn block_add(
     let max_h = max_h.unwrap();
     for i in 0..blk_cols {
         let col_pos = pos_idx + i;
-        mbits[col_pos].cnt += col_des.col[i].1;
-        mbits[col_pos].len = max_h + col_des.col[i].0 + col_des.col[i].1;
+        let one_col_des = col_des.col[i];
+        //println!("BEFORE {:?}", mbits[col_pos]);
+        mbits[col_pos].cnt += one_col_des.1;
+        mbits[col_pos].len = max_h + one_col_des.0 + one_col_des.1;
+        //println!("AFTER {:?}", mbits[col_pos]);
+        assert!(mbits[col_pos].len >= mbits[col_pos].cnt);
     }
     Some(mbits)
 }

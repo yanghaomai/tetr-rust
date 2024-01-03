@@ -7,7 +7,10 @@ use winapi::{
     shared::{minwindef::DWORD, windef::POINT},
     um::{
         winnt::{KEY_ENUMERATE_SUB_KEYS, SHORT},
-        winuser::{self, keybd_event, GetCursorPos, VkKeyScanA, KEYEVENTF_KEYUP},
+        winuser::{
+            self, keybd_event, GetCursorPos, SendInput, VkKeyScanA, INPUT, INPUT_KEYBOARD,
+            KEYEVENTF_KEYUP, VK_LEFT,
+        },
     },
 };
 
@@ -81,24 +84,33 @@ lazy_static! {
     };
 }
 
-fn key_down(key: u8) {
-    let vk = KEY_NAMES.get(&key).unwrap();
-    let vk = vk % 0x100;
+fn key_down(vk: u16) {
+    let mut input = INPUT {
+        type_: INPUT_KEYBOARD,
+        u: unsafe { std::mem::zeroed() },
+    };
     unsafe {
-        keybd_event(vk as u8, 0, 0x0000 as DWORD, 0);
+        input.u.ki_mut().wVk = vk;
+        input.u.ki_mut().dwFlags = 0x0000;
+        SendInput(1, &mut input, std::mem::size_of::<INPUT>() as i32);
     }
 }
 
-fn key_up(key: u8) {
-    let vk = KEY_NAMES.get(&key).unwrap();
-    let vk = vk % 0x100;
+fn key_up(vk: u16) {
+    let mut input = INPUT {
+        type_: INPUT_KEYBOARD,
+        u: unsafe { std::mem::zeroed() },
+    };
     unsafe {
-        keybd_event(vk as u8, 0, KEYEVENTF_KEYUP, 0);
+        input.u.ki_mut().wVk = vk;
+        input.u.ki_mut().dwFlags = KEYEVENTF_KEYUP;
+        SendInput(1, &mut input, std::mem::size_of::<INPUT>() as i32);
     }
 }
 
-pub fn key_updown(key: u8) {
-    key_down(key);
-    sleep(Duration::from_millis(50));
-    key_up(key);
+pub fn key_updown(key: i32) {
+    println!("KEY UPDOWN {key}");
+    key_down(key as u16);
+    sleep(Duration::from_millis(5));
+    key_up(key as u16);
 }

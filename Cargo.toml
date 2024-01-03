@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 screenshots = "0.8.6"
-winapi = {version = "0.3", features = ["winuser", "libloaderapi", "processthreadsapi", "tlhelp32"]}
+winapi = {version = "0.3.9", features = ["winuser", "libloaderapi", "processthreadsapi", "tlhelp32"]}
 minifb = "0.25"
 lazy_static = "1.4.0"
+webdriver = "0.41.0"

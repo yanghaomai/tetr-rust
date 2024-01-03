@@ -2,7 +2,6 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 
-//use lazy_static
 use minifb::{Key, Window, WindowOptions};
 use screenshots::image::{ImageBuffer, Pixel, Rgba, RgbaImage};
 use screenshots::Screen;
@@ -19,8 +18,9 @@ use winapi::um::tlhelp32::{
     CreateToolhelp32Snapshot, Process32First, Process32Next, PROCESSENTRY32, TH32CS_SNAPPROCESS,
 };
 use winapi::um::winuser::{
-    DispatchMessageW, GetCursorPos, GetMessageW, MapVirtualKeyW, TranslateMessage,
-    UnhookWindowsHookEx, KBDLLHOOKSTRUCT, MAPVK_VK_TO_CHAR, MSG,
+    DispatchMessageW, GetCursorPos, GetMessageW, MapVirtualKeyA, MapVirtualKeyW, TranslateMessage,
+    UnhookWindowsHookEx, VkKeyScanA, KBDLLHOOKSTRUCT, MAPVK_VK_TO_CHAR, MAPVK_VK_TO_VSC, MSG,
+    VK_ACCEPT, VK_DOWN, VK_LEFT, VK_RCONTROL, VK_RIGHT, VK_SPACE, VK_UP,
 };
 use winapi::{
     shared::{
@@ -115,6 +115,9 @@ fn get_all_possible(
     let mut all_possible = Vec::new();
 
     let brd = bits2rowdes(bits);
+    /*for i in brd.iter() {
+        assert!(i.cnt <= i.len);
+    }*/
 
     for rot_idx in 0..3usize {
         for pos_idx in 0..XCNT as usize {
@@ -122,7 +125,11 @@ fn get_all_possible(
             if mbits.is_none() {
                 continue;
             } else {
-                all_possible.push((mbits.unwrap(), rot_idx, pos_idx));
+                let mbits = mbits.unwrap();
+                /*for i in mbits.iter() {
+                    assert!(i.cnt <= i.len);
+                }*/
+                all_possible.push((mbits, rot_idx, pos_idx));
             }
         }
     }
@@ -156,7 +163,9 @@ fn get_best(bits: &Vec<Vec<bool>>, next_colr: TetrColr) -> (usize, usize) {
     for x in ap.iter().enumerate() {
         let mut hole_cnt = 0;
         let mut max_h = x.1 .0[0].len;
-        for y in x.1 .0.iter() {
+        for yy in x.1 .0.iter().enumerate() {
+            let y = yy.1;
+            //println!("{} {} {}", y.len, y.cnt, yy.0);
             hole_cnt += y.len - y.cnt;
             max_h = max_h.max(y.len);
         }
@@ -171,6 +180,13 @@ fn get_best(bits: &Vec<Vec<bool>>, next_colr: TetrColr) -> (usize, usize) {
     (tmp.1, tmp.2)
 }
 
+fn ascii_to_virtual_key(ascii_char: u8) -> i32 {
+    // Convert ASCII character to virtual key code
+    let ret = unsafe { VkKeyScanA(ascii_char as i8) as u16 };
+    let vk = ret & 0xff;
+    vk as i32
+}
+
 fn start_game(width: u32, height: u32, rx: &Receiver<CtrlInfo>) {
     let (mx, my) = get_mouse();
     let px = mx * 2;
@@ -179,9 +195,12 @@ fn start_game(width: u32, height: u32, rx: &Receiver<CtrlInfo>) {
     let scns = Screen::all().unwrap();
     let scn = scns[0];
     let img = scn.capture().unwrap();
+    println!("{:?}", scn.display_info);
+    println!("{} {}", img.len(), img.width() * img.height());
+    //print_img(&img);
     let ss_width = img.width();
     let ss_height = img.height();
-    assert!(ss_width % width == 0);
+    assert!(ss_width % width == 0, "{ss_width} {width}");
     let radio = ss_width / width;
 
     // get len
@@ -205,26 +224,36 @@ fn start_game(width: u32, height: u32, rx: &Receiver<CtrlInfo>) {
         //print_img_bits(img, bits, cx, cy, len);
 
         let (rot_idx, pos_idx) = get_best(&bits, next_colr);
-
+        println!("HHH {rot_idx} {pos_idx}");
+        //continue;
         // do rot
         match rot_idx {
             0 => (),
             1 => {
-                key_updown(b'd');
+                key_updown(VK_DOWN);
             }
             2 => {
-                key_updown(b'w');
+                key_updown(VK_RCONTROL);
             }
             3 => {
-                key_updown(b'a');
+                key_updown(VK_UP);
             }
             _ => panic!(),
         }
+        let start_pos = get_start_pos(next_colr, rot_idx);
+        let right_move = pos_idx as i32 - start_pos;
+        for _ in 0..right_move.abs() {
+            key_updown(if right_move > 0 { VK_RIGHT } else { VK_LEFT });
+        }
+        key_updown(VK_SPACE);
+        sleep(Duration::from_millis(5));
+        println!("NEXT");
     }
     println!("QUIT GAME");
 }
 
 fn main() {
+    tetr_init_static();
     let (width, height) = get_size();
     println!("Screen {width}x{height}");
 

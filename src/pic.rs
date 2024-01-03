@@ -27,7 +27,7 @@ pub fn get_len(img: &RgbaImage, px: i32, py: i32) -> ((u32, u32), u32) {
     let b = xy_max[1] - xy_min[1];
 
     //println!("HHH{a} {b}");
-    assert!((a - b).abs() < 2);
+    assert!((a - b).abs() < 2, "{} {a} {b}", (a - b).abs());
     let mx = (xy_min[0] + xy_max[0]) as u32 / 2 - X_FIX;
     let my = (xy_min[1] + xy_max[1]) as u32 / 2 - Y_FIX;
     let len = (a + b) as u32 / 2 + LEN_FIX;
@@ -50,7 +50,7 @@ pub fn get_len(img: &RgbaImage, px: i32, py: i32) -> ((u32, u32), u32) {
         for i in 0..XCNT {
             for j in 0..YCNT {
                 let mx = mx + i * len;
-                let my = my + j * len;
+                let my = my - (YCNT - 1) * len + j * len;
 
                 *img.get_pixel_mut(mx, my) = wp;
                 *img.get_pixel_mut(mx + 1, my) = wp;
@@ -65,7 +65,7 @@ pub fn get_len(img: &RgbaImage, px: i32, py: i32) -> ((u32, u32), u32) {
         }
         print_img(&img);
     }
-    ((mx, my), len)
+    ((mx, my - (YCNT - 1) * len), len)
 }
 
 pub fn draw_rect(img: &mut RgbaImage, x: u32, y: u32, p: Rgba<u8>) {
@@ -89,7 +89,7 @@ pub fn get_current_pic(
     for i in 0..YCNT {
         for j in 0..XCNT {
             let pi = img.get_pixel(cx + j * len, cy + i * len);
-            if i < TOP_LINE.try_into().unwrap() {
+            if i < TOP_LINE as u32 {
                 if is_black(pi) == false {
                     if next_colr == None {
                         next_colr = Some(*pi);
