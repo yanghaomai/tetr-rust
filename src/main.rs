@@ -256,8 +256,12 @@ fn start_game(width: u32, height: u32, rx: &Receiver<CtrlInfo>) {
         for _ in 0..right_move.abs() {
             key_updown(if right_move > 0 { VK_RIGHT } else { VK_LEFT });
         }
+        if next_colr == TetrColr::Gray {
+            sleep(Duration::from_millis(15000));
+        } else {
+            sleep(Duration::from_millis(500));
+        }
         key_updown(VK_SPACE);
-        sleep(Duration::from_millis(500));
         println!("NEXT");
     }
     println!("QUIT GAME");
