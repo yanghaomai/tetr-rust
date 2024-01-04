@@ -20,7 +20,7 @@ use winapi::um::tlhelp32::{
 use winapi::um::winuser::{
     DispatchMessageW, GetCursorPos, GetMessageW, MapVirtualKeyA, MapVirtualKeyW, TranslateMessage,
     UnhookWindowsHookEx, VkKeyScanA, KBDLLHOOKSTRUCT, MAPVK_VK_TO_CHAR, MAPVK_VK_TO_VSC, MSG,
-    VK_ACCEPT, VK_DOWN, VK_LEFT, VK_RCONTROL, VK_RIGHT, VK_SPACE, VK_UP,
+    VK_ACCEPT, VK_DOWN, VK_END, VK_HOME, VK_LEFT, VK_RCONTROL, VK_RIGHT, VK_SPACE, VK_UP,
 };
 use winapi::{
     shared::{
@@ -115,10 +115,17 @@ struct PsbMap {
     max_h: u32,
 }
 
-fn get_all_possible(bits: &Vec<Vec<bool>>, next_colr: TetrColr) -> Vec<PsbMap> {
-    let mut all_possible = Vec::new();
+impl std::fmt::Debug for PsbMap {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PsbMap")
+            .field("rot", &self.rot_idx)
+            .field("pos", &self.pos_idx)
+            .finish()
+    }
+}
 
-    let brd = bits2rowdes(bits);
+fn get_all_possible(brd: &Vec<BitsRowDes>, next_colr: TetrColr) -> Vec<PsbMap> {
+    let mut all_possible = Vec::new();
     /*for i in brd.iter() {
         assert!(i.cnt <= i.len);
     }*/
@@ -145,14 +152,16 @@ fn get_all_possible(bits: &Vec<Vec<bool>>, next_colr: TetrColr) -> Vec<PsbMap> {
     all_possible
 }
 
-fn get_best(bits: &Vec<Vec<bool>>, next_colr: TetrColr) -> (usize, usize) {
-    let ap = get_all_possible(bits, next_colr);
+fn get_best(brd: &Vec<BitsRowDes>, next_colr: TetrColr) -> (usize, usize, bool) {
+    let ap = get_all_possible(brd, next_colr);
 
-    #[derive(PartialEq, Eq)]
+    #[derive(PartialEq, Eq, Debug)]
     struct ApDes {
         idx: usize,
         hole_cnt: u32,
-        block_hight: u32,
+        max_hight: u32,
+        total_hight: i32,
+        hight_var: i32,
         max_h: u32,
     }
     impl Ord for ApDes {
@@ -160,7 +169,9 @@ fn get_best(bits: &Vec<Vec<bool>>, next_colr: TetrColr) -> (usize, usize) {
             // 首先按照年龄排序
             self.hole_cnt
                 .cmp(&other.hole_cnt)
-                .then(self.max_h.cmp(&other.max_h))
+                .then(self.max_hight.cmp(&other.max_hight))
+                .then(self.total_hight.cmp(&other.total_hight))
+                .then(self.hight_var.cmp(&other.hight_var))
         }
     }
 
@@ -169,26 +180,56 @@ fn get_best(bits: &Vec<Vec<bool>>, next_colr: TetrColr) -> (usize, usize) {
             Some(self.cmp(other))
         }
     }
+    let origin_hole_cnt = {
+        let mut tmp = 0;
+        for x in brd.iter() {
+            assert!(x.len >= x.cnt);
+            tmp += x.len - x.cnt;
+        }
+        tmp
+    };
     let mut ap_des = Vec::new();
     for (idx, x) in ap.iter().enumerate() {
         let mut hole_cnt = 0;
-        let mut block_hight = x.rd[0].len;
+        let mut max_hight = x.rd[0].len;
+        let mut total_hight = 0;
         for yy in x.rd.iter().enumerate() {
             let y = yy.1;
             //println!("{} {} {}", y.len, y.cnt, yy.0);
             hole_cnt += y.len - y.cnt;
-            block_hight = block_hight.max(y.len);
+            total_hight += y.len as i32;
+            max_hight = max_hight.max(y.len);
         }
+        let avg_hight = total_hight / x.rd.len() as i32;
+        let hight_var = {
+            let mut tmp = 0;
+            for y in x.rd.iter() {
+                tmp += (y.len as i32 - avg_hight).pow(2);
+            }
+            tmp
+        };
         ap_des.push(ApDes {
             idx,
             hole_cnt,
-            block_hight,
+            max_hight,
             max_h: x.max_h,
+            total_hight,
+            hight_var,
         });
     }
-    ap_des.sort_unstable();
+    ap_des.sort();
+    /*for i in ap_des.iter() {
+        println!("FUCK {:?} {:?}", i, ap[i.idx]);
+    }*/
+    let idx = ap_des[0].idx;
+    let may_swap = if origin_hole_cnt == ap_des[0].hole_cnt {
+        false
+    } else {
+        true
+    };
+
     let tmp = &ap[ap_des[0].idx];
-    (tmp.rot_idx, tmp.pos_idx)
+    (tmp.rot_idx, tmp.pos_idx, may_swap)
 }
 
 fn ascii_to_virtual_key(ascii_char: u8) -> i32 {
@@ -217,6 +258,7 @@ fn start_game(width: u32, height: u32, rx: &Receiver<CtrlInfo>) {
     // get len
     let ((cx, cy), len) = get_len(&img, px as i32, py as i32);
 
+    let mut last_swap = false;
     loop {
         if let Ok(ci) = rx.try_recv() {
             match ci {
@@ -229,12 +271,21 @@ fn start_game(width: u32, height: u32, rx: &Receiver<CtrlInfo>) {
         let next_colr;
         if let Some(ret) = get_current_pic(&img, cx, cy, len) {
             (bits, next_colr) = ret;
+            println!("NEXT Colr {:?}", next_colr);
+            //sleep(Duration::from_millis(100));
         } else {
             continue;
         }
         //print_img_bits(img, bits, cx, cy, len);
-
-        let (rot_idx, pos_idx) = get_best(&bits, next_colr);
+        let brd = bits2rowdes(&bits);
+        let (rot_idx, pos_idx, may_swap) = get_best(&brd, next_colr);
+        if may_swap && last_swap == false {
+            key_updown(VK_HOME);
+            last_swap = true;
+            continue;
+        } else {
+            last_swap = false;
+        }
         println!("HHH {rot_idx} {pos_idx}");
         //continue;
         // do rot
@@ -244,7 +295,7 @@ fn start_game(width: u32, height: u32, rx: &Receiver<CtrlInfo>) {
                 key_updown(VK_DOWN);
             }
             2 => {
-                key_updown(VK_RCONTROL);
+                key_updown(VK_END);
             }
             3 => {
                 key_updown(VK_UP);
@@ -256,13 +307,8 @@ fn start_game(width: u32, height: u32, rx: &Receiver<CtrlInfo>) {
         for _ in 0..right_move.abs() {
             key_updown(if right_move > 0 { VK_RIGHT } else { VK_LEFT });
         }
-        if next_colr == TetrColr::Gray {
-            sleep(Duration::from_millis(15000));
-        } else {
-            sleep(Duration::from_millis(500));
-        }
         key_updown(VK_SPACE);
-        println!("NEXT");
+        println!("{:?} done", next_colr);
     }
     println!("QUIT GAME");
 }
@@ -295,4 +341,41 @@ fn main() {
         }
     }
     kb_handler.join().unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn get_best_test() {
+        let mut brd = Vec::new();
+        for _ in 0..XCNT {
+            brd.push(BitsRowDes { len: 0, cnt: 0 });
+        }
+
+        let (r, p, _) = get_best(&brd, TetrColr::Green);
+        assert!(r == 0 && p == 0);
+        let (r, p, _) = get_best(&brd, TetrColr::Cyan);
+        assert!(r == 0 && p == 0);
+        let (r, p, _) = get_best(&brd, TetrColr::Cyan);
+        {
+            let mut brd = brd.clone();
+            brd[1] = BitsRowDes { cnt: 2, len: 2 };
+            brd[2] = BitsRowDes { cnt: 1, len: 1 };
+            brd[3] = BitsRowDes { cnt: 2, len: 2 };
+            let (r, p, _) = get_best(&brd, TetrColr::Purple);
+            assert!(r == 0 && p == 4);
+        }
+        {
+            let mut brd = brd.clone();
+            for i in 0..XCNT as usize {
+                if i == 2 {
+                    continue;
+                }
+                brd[i] = BitsRowDes { len: 1, cnt: 1 };
+            }
+            let (r, p, may_swap) = get_best(&brd, TetrColr::Purple);
+            assert!(r == 2 && p == 1 && may_swap == false, "{r} {p}");
+        }
+    }
 }

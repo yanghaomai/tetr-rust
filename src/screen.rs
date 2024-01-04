@@ -111,6 +111,7 @@ fn key_up(vk: u16) {
 pub fn key_updown(key: i32) {
     println!("KEY UPDOWN {key}");
     key_down(key as u16);
-    sleep(Duration::from_millis(5));
+    sleep(Duration::from_millis(20));
     key_up(key as u16);
+    sleep(Duration::from_millis(15));
 }
