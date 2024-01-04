@@ -289,16 +289,16 @@ fn start_game(width: u32, height: u32, rx: &Receiver<CtrlInfo>) {
         }
         let img = scn.capture().unwrap();
         let bits;
-        let next_colr;
+        let next_colrs;
         if let Some(ret) = get_current_pic(&img, cx, cy, len) {
-            (bits, next_colr) = ret;
-            println!("NEXT Colr {:?}", next_colr);
+            (bits, next_colrs) = ret;
+            println!("NEXT Colr {:?}", next_colrs);
         } else {
             continue;
         }
         //print_img_bits(img, bits, cx, cy, len);
         let bd = bits2des(&bits);
-        let (rot_idx, pos_idx, may_swap) = get_best(&bd, next_colr);
+        let (rot_idx, pos_idx, may_swap) = get_best(&bd, next_colrs[0]);
         if may_swap && last_swap == false {
             key_updown(VK_HOME);
             last_swap = true;
@@ -322,7 +322,7 @@ fn start_game(width: u32, height: u32, rx: &Receiver<CtrlInfo>) {
             }
             _ => panic!(),
         }
-        let start_pos = get_start_pos(next_colr, rot_idx);
+        let start_pos = get_start_pos(next_colrs[0], rot_idx);
         let right_move = pos_idx as i32 - start_pos;
         for _ in 0..right_move.abs() {
             key_updown(if right_move > 0 { VK_RIGHT } else { VK_LEFT });

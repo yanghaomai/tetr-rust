@@ -1,3 +1,5 @@
+use std::collections::btree_map::Range;
+
 use crate::colr::*;
 use crate::constants::*;
 use crate::screen::print_img;
@@ -77,12 +79,36 @@ pub fn draw_rect(img: &mut RgbaImage, x: u32, y: u32, p: Rgba<u8>) {
     }
 }
 
+pub fn draw_x_line<I>(img: &mut RgbaImage, x: I, y: u32, p: Rgba<u8>)
+where
+    I: Iterator<Item = u32>,
+{
+    const LEN: u32 = 6;
+    for i in x {
+        for j in (y - LEN)..=(y + LEN) {
+            *img.get_pixel_mut(i, j) = p;
+        }
+    }
+}
+
+pub fn draw_y_line<I>(img: &mut RgbaImage, x: u32, y: I, p: Rgba<u8>)
+where
+    I: Iterator<Item = u32>,
+{
+    const LEN: u32 = 6;
+    for i in y {
+        for j in (x - LEN)..=(x + LEN) {
+            *img.get_pixel_mut(j, i) = p;
+        }
+    }
+}
+
 pub fn get_current_pic(
     img: &RgbaImage,
     cx: u32,
     cy: u32,
     len: u32,
-) -> Option<(Vec<Vec<bool>>, TetrColr)> {
+) -> Option<(Vec<Vec<bool>>, Vec<TetrColr>)> {
     let mut bits = vec![vec![false; XCNT as usize]; YCNT as usize];
     let mut next_colr = None;
     let mut top_line_colr_cnt = 0;
@@ -105,9 +131,64 @@ pub fn get_current_pic(
         }
     }
     if next_colr == None || top_line_colr_cnt != 4 {
-        None
-    } else {
-        let next_colr = next_colr.unwrap();
-        Some((bits, get_color(&next_colr).unwrap()))
+        return None;
     }
+    let next_colr = next_colr.unwrap();
+
+    const NEXT_START_Y: u32 = 3;
+    const NEXT_END_Y: u32 = 17;
+    const NEXT_START_X: u32 = XCNT + 1;
+    const NEXT_END_X: u32 = NEXT_START_X + 3;
+
+    let next_start_y = cy + len * NEXT_START_Y;
+    let next_end_y = cy + len * NEXT_END_Y;
+    let next_start_x = cx + len * NEXT_START_X;
+    let next_end_x = cx + len * NEXT_END_X;
+
+    const NEXT_CNT: u32 = 5;
+    let one_y_len = (next_end_y - next_start_y) / NEXT_CNT;
+    let one_x_len = next_end_x - next_start_x;
+    let start_y: Vec<u32> = (0..5).map(|x| one_y_len * x + next_start_y).collect();
+
+    let mut next_colr_vec = vec![get_color(&next_colr).unwrap()];
+
+    const X_SAMPLE: u32 = 2;
+    const Y_SAMPLE: u32 = 2;
+    let x_gap = one_x_len / (X_SAMPLE + 1);
+    let y_gap = one_y_len / (Y_SAMPLE + 1);
+
+    //let mut img = img.clone();
+    //let lc = Rgba([255, 0, 0, 255]);
+
+    for sy in start_y.iter() {
+        let mut colr = None;
+        for i in 1..=X_SAMPLE {
+            for j in 1..=Y_SAMPLE {
+                let x = next_start_x + i * x_gap;
+                let y = sy + j * y_gap;
+                //draw_rect(&mut img, x, y, lc);
+                let p = img.get_pixel(x, y);
+                let c = get_color(&p).unwrap();
+                if c == TetrColr::Black || c == TetrColr::Gray {
+                    continue;
+                }
+                assert_ne!(c, TetrColr::Gray);
+                match colr {
+                    None => colr = Some(c),
+                    Some(ref cc) => {
+                        assert_eq!(*cc, c);
+                    }
+                }
+            }
+        }
+        next_colr_vec.push(colr.unwrap());
+    }
+
+    /*for i in start_y {
+        draw_x_line(&mut img, next_start_x..next_end_x, i, lc);
+    }
+    draw_x_line(&mut img, next_start_x..next_end_x, next_end_y, lc);
+    print_img(&img);*/
+
+    Some((bits, next_colr_vec))
 }
