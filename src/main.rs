@@ -5,7 +5,8 @@
 use minifb::{Key, Window, WindowOptions};
 use screenshots::image::{ImageBuffer, Pixel, Rgba, RgbaImage};
 use screenshots::Screen;
-use std::cmp::{max, min};
+use std::cmp::{max, min, Reverse};
+use std::collections::BinaryHeap;
 use std::ffi::{c_char, CStr};
 use std::sync::mpsc::{self, Receiver};
 use std::thread::sleep;
@@ -205,7 +206,9 @@ fn get_best(bd: &BitsDes, next_colr: TetrColr) -> (usize, usize, bool) {
         }
         (tmp1 as i32, tmp2 as i32)
     };
-    let mut ap_des = Vec::new();
+
+    //let mut ap_des = Vec::new();
+    let mut ap_des = BinaryHeap::new();
     for (idx, x) in ap.iter().enumerate() {
         let mut hole_cnt = 0;
         let mut max_hight = x.cd[0].len;
@@ -225,20 +228,19 @@ fn get_best(bd: &BitsDes, next_colr: TetrColr) -> (usize, usize, bool) {
             }
             tmp
         };
-        ap_des.push(ApDes {
+        ap_des.push(Reverse(ApDes {
             idx,
             hole_cnt: hole_cnt as i32,
             max_hight: max_hight as i32,
             total_hight,
             hight_var,
             block_max_hight: x.block_max_hight as i32,
-        });
+        }));
     }
-    ap_des.sort();
     /*for i in ap_des.iter() {
         println!("FUCK {:?} {:?}", i, ap[i.idx]);
     }*/
-    let first_des = &ap_des[0];
+    let first_des = &ap_des.peek().unwrap().0;
     let idx = first_des.idx;
 
     let may_swap = if origin_hole_cnt != first_des.hole_cnt {
@@ -325,8 +327,9 @@ fn start_game(width: u32, height: u32, rx: &Receiver<CtrlInfo>) {
         for _ in 0..right_move.abs() {
             key_updown(if right_move > 0 { VK_RIGHT } else { VK_LEFT });
         }
+        //sleep(Duration::from_secs(5));
         key_updown(VK_SPACE);
-        println!("{:?} done", next_colr);
+        //println!("{:?} done", next_colr);
     }
     println!("QUIT GAME");
 }
@@ -359,4 +362,23 @@ fn main() {
         }
     }
     kb_handler.join().unwrap();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_best_test() {
+        let mut cd = Vec::new();
+        let mut rd = Vec::new();
+        for _ in 0..XCNT {
+            cd.push(BitsColDes { len: 0, cnt: 0 })
+        }
+        for _ in 0..YCNT {
+            rd.push(BitsRowDes { cnt: 0 });
+        }
+        let (rot_idx, pos_idx, may_hold) = get_best(&BitsDes { cd, rd }, TetrColr::Orange);
+        assert!(false, "{rot_idx} {pos_idx} {may_hold}");
+    }
 }

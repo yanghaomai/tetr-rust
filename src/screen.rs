@@ -116,8 +116,8 @@ pub fn key_updown(key: i32) {
         static  RNG : RefCell<rand::rngs::ThreadRng>= RefCell::new(rand::thread_rng());
     }
 
-    let gen = || RNG.with(|rng| rng.borrow_mut().gen_range(15..25));
-    println!("KEY UPDOWN {key}");
+    let gen = || RNG.with(|rng| rng.borrow_mut().gen_range(15..20));
+    //println!("KEY UPDOWN {key}");
     key_down(key as u16);
     sleep(Duration::from_millis(gen()));
     key_up(key as u16);
