@@ -180,13 +180,15 @@ fn get_best(brd: &Vec<BitsRowDes>, next_colr: TetrColr) -> (usize, usize, bool) 
             Some(self.cmp(other))
         }
     }
-    let origin_hole_cnt = {
-        let mut tmp = 0;
+    let (origin_hole_cnt, origin_max_hight) = {
+        let mut tmp1 = 0;
+        let mut tmp2 = brd[0].len;
         for x in brd.iter() {
             assert!(x.len >= x.cnt);
-            tmp += x.len - x.cnt;
+            tmp1 += x.len - x.cnt;
+            tmp2 = tmp2.max(x.len);
         }
-        tmp
+        (tmp1, tmp2)
     };
     let mut ap_des = Vec::new();
     for (idx, x) in ap.iter().enumerate() {
@@ -221,14 +223,18 @@ fn get_best(brd: &Vec<BitsRowDes>, next_colr: TetrColr) -> (usize, usize, bool) 
     /*for i in ap_des.iter() {
         println!("FUCK {:?} {:?}", i, ap[i.idx]);
     }*/
-    let idx = ap_des[0].idx;
-    let may_swap = if origin_hole_cnt == ap_des[0].hole_cnt {
+    let first_des = &ap_des[0];
+    let idx = first_des.idx;
+
+    let may_swap = if (origin_hole_cnt == first_des.hole_cnt)
+        || (origin_max_hight + 2 < first_des.max_hight)
+    {
         false
     } else {
         true
     };
 
-    let tmp = &ap[ap_des[0].idx];
+    let tmp = &ap[idx];
     (tmp.rot_idx, tmp.pos_idx, may_swap)
 }
 
