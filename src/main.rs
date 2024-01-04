@@ -137,12 +137,12 @@ fn get_all_possible(bd: &BitsDes, next_colr: TetrColr) -> Vec<PsbMap> {
             if add_info.is_none() {
                 continue;
             } else {
-                let (cd, block_max_hight) = add_info.unwrap();
+                let (bd, block_max_hight) = add_info.unwrap();
                 /*for i in mbits.iter() {
                     assert!(i.cnt <= i.len);
                 }*/
                 all_possible.push(PsbMap {
-                    cd,
+                    cd: bd.cd,
                     rot_idx,
                     pos_idx,
                     block_max_hight,

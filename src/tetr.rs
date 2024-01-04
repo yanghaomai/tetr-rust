@@ -193,7 +193,7 @@ pub fn block_add(
     c: TetrColr,
     rot_idx: usize,
     pos_idx: usize,
-) -> Option<(Vec<BitsColDes>, u32)> {
+) -> Option<(BitsDes, u32)> {
     let cd = &bd.cd;
     let rd = &bd.rd;
     assert!(rot_idx < 4);
@@ -219,7 +219,7 @@ pub fn block_add(
     let mut cd = cd.clone();
     let mut rd = rd.clone();
     let max_h = max_h.unwrap();
-    let mut remove_row = 0u32;
+    let mut remove_rows = Vec::new();
     let mut block_max_hight = 0;
     for i in 0..blk_cols {
         let col_pos = pos_idx + i;
@@ -229,21 +229,31 @@ pub fn block_add(
         cd[col_pos].len = max_h + one_col_des.0 + one_col_des.1;
         //println!("AFTER {:?}", mbits[col_pos]);
         assert!(cd[col_pos].len >= cd[col_pos].cnt);
-        for j in (max_h + one_col_des.0)..cd[col_pos].len {
-            rd[j as usize].cnt += 1;
-            assert!(rd[j as usize].cnt <= cd.len() as u32);
-            if rd[j as usize].cnt == cd.len() as u32 {
-                remove_row += 1;
+        for j in (max_h + one_col_des.0) as usize..cd[col_pos].len as usize {
+            rd[j].cnt += 1;
+            assert!(rd[j].cnt <= cd.len() as u32);
+            if rd[j].cnt == cd.len() as u32 {
+                remove_rows.push(j);
             }
         }
 
         block_max_hight = block_max_hight.max(cd[col_pos].len);
     }
     for i in cd.iter_mut() {
-        i.len -= remove_row;
-        i.cnt -= remove_row;
+        i.len -= remove_rows.len() as u32;
+        i.cnt -= remove_rows.len() as u32;
     }
-    Some((cd, block_max_hight))
+    remove_rows.sort();
+    remove_rows.reverse();
+    for i in 1..remove_rows.len() {
+        assert_ne!(remove_rows[i], remove_rows[i - 1]);
+    }
+    for i in remove_rows {
+        rd.remove(i);
+        rd.push(BitsRowDes { cnt: 0 });
+    }
+
+    Some((BitsDes { rd, cd }, block_max_hight))
 }
 
 #[cfg(test)]
