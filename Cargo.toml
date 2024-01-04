@@ -9,3 +9,4 @@ winapi = {version = "0.3.9", features = ["winuser", "libloaderapi", "processthre
 minifb = "0.25"
 lazy_static = "1.4.0"
 webdriver = "0.41.0"
+rand="0.8.5"

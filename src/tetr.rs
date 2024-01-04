@@ -120,13 +120,49 @@ pub fn get_start_pos(c: TetrColr, rot_idx: usize) -> i32 {
     a.pos[rot_idx]
 }
 
+pub struct BitsDes {
+    pub rd: Vec<BitsRowDes>,
+    pub cd: Vec<BitsColDes>,
+}
+
 #[derive(Clone, Debug)]
-pub struct BitsRowDes {
+pub struct BitsColDes {
     pub len: u32,
     pub cnt: u32,
 }
 
-pub fn bits2rowdes(bits: &Vec<Vec<bool>>) -> Vec<BitsRowDes> {
+#[derive(Clone, Debug)]
+pub struct BitsRowDes {
+    pub cnt: u32,
+}
+
+pub fn bits2des(bits: &Vec<Vec<bool>>) -> BitsDes {
+    BitsDes {
+        rd: bits2rowdes(bits),
+        cd: bits2coldes(bits),
+    }
+}
+
+fn bits2rowdes(bits: &Vec<Vec<bool>>) -> Vec<BitsRowDes> {
+    let mut ret = Vec::new();
+    let c = bits[0].len();
+    let r = bits.len();
+    for i in 0..r {
+        let cnt = {
+            let mut tmp = 0;
+            for j in 0..c {
+                if bits[r - 1 - i][j] {
+                    tmp += 1;
+                }
+            }
+            tmp
+        };
+        ret.push(BitsRowDes { cnt })
+    }
+    ret
+}
+
+fn bits2coldes(bits: &Vec<Vec<bool>>) -> Vec<BitsColDes> {
     let mut ret = Vec::new();
     let c = bits[0].len();
     let r = bits.len();
@@ -141,7 +177,7 @@ pub fn bits2rowdes(bits: &Vec<Vec<bool>>) -> Vec<BitsRowDes> {
                 fill_cnt += 1;
             }
         }
-        ret.push(BitsRowDes {
+        ret.push(BitsColDes {
             len: match first_fill {
                 None => 0,
                 Some(x) => (r - x) as u32,
@@ -153,43 +189,58 @@ pub fn bits2rowdes(bits: &Vec<Vec<bool>>) -> Vec<BitsRowDes> {
 }
 
 pub fn block_add(
-    mbits: &Vec<BitsRowDes>,
+    bd: &BitsDes,
     c: TetrColr,
     rot_idx: usize,
     pos_idx: usize,
-) -> Option<(Vec<BitsRowDes>, u32)> {
+) -> Option<Vec<BitsColDes>> {
+    let cd = &bd.cd;
+    let rd = &bd.rd;
     assert!(rot_idx < 4);
-    assert!((pos_idx as usize) < mbits.len());
+    assert!((pos_idx as usize) < cd.len());
 
     let col_des = &COLR2BLK.get(&c).unwrap().rots[rot_idx];
     let blk_cols = col_des.col.len();
-    if blk_cols + pos_idx > mbits.len() {
+    if blk_cols + pos_idx > cd.len() {
         return None;
     }
     let mut max_h = None;
     for i in 0..blk_cols {
         let col_pos = pos_idx + i;
-        if mbits[col_pos].len >= col_des.col[i].0 {
+        if cd[col_pos].len >= col_des.col[i].0 {
             if max_h.is_none() {
-                max_h = Some(mbits[col_pos].len - col_des.col[i].0);
+                max_h = Some(cd[col_pos].len - col_des.col[i].0);
             } else {
-                max_h = Some(max_h.unwrap().max(mbits[col_pos].len - col_des.col[i].0));
+                max_h = Some(max_h.unwrap().max(cd[col_pos].len - col_des.col[i].0));
             }
         }
     }
 
-    let mut mbits = mbits.clone();
+    let mut cd = cd.clone();
+    let mut rd = rd.clone();
     let max_h = max_h.unwrap();
+    let mut remove_row = 0u32;
     for i in 0..blk_cols {
         let col_pos = pos_idx + i;
         let one_col_des = col_des.col[i];
         //println!("BEFORE {:?}", mbits[col_pos]);
-        mbits[col_pos].cnt += one_col_des.1;
-        mbits[col_pos].len = max_h + one_col_des.0 + one_col_des.1;
+        cd[col_pos].cnt += one_col_des.1;
+        cd[col_pos].len = max_h + one_col_des.0 + one_col_des.1;
         //println!("AFTER {:?}", mbits[col_pos]);
-        assert!(mbits[col_pos].len >= mbits[col_pos].cnt);
+        assert!(cd[col_pos].len >= cd[col_pos].cnt);
+        for j in (max_h + one_col_des.0)..cd[col_pos].len {
+            rd[j as usize].cnt += 1;
+            assert!(rd[j as usize].cnt <= cd.len() as u32);
+            if rd[j as usize].cnt == cd.len() as u32 {
+                remove_row += 1;
+            }
+        }
     }
-    Some((mbits, max_h))
+    for i in cd.iter_mut() {
+        i.len -= remove_row;
+        i.cnt -= remove_row;
+    }
+    Some(cd)
 }
 
 #[cfg(test)]

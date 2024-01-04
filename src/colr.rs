@@ -20,7 +20,7 @@ struct ColrDes {
     center: Rgba<u8>,
 }
 
-const COLR_ARR: [ColrDes; 8] = [
+const COLR_ARR: [ColrDes; 9] = [
     ColrDes {
         c: TetrColr::Purple,
         name: "purple", //T
@@ -60,6 +60,11 @@ const COLR_ARR: [ColrDes; 8] = [
         c: TetrColr::Black,
         name: "Black",
         center: Rgba([0, 0, 0, 255]),
+    },
+    ColrDes {
+        c: TetrColr::Gray,
+        name: "Gray",
+        center: Rgba([67, 67, 67, 67]),
     },
 ];
 

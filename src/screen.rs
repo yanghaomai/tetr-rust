@@ -1,5 +1,8 @@
 use lazy_static::lazy_static;
-use std::{collections::HashMap, mem, thread::sleep, time::Duration};
+use rand::Rng;
+use std::{
+    borrow::BorrowMut, cell::RefCell, collections::HashMap, mem, thread::sleep, time::Duration,
+};
 
 use minifb::{Key, Window, WindowOptions};
 use screenshots::image::{Pixel, Rgba, RgbaImage};
@@ -109,9 +112,14 @@ fn key_up(vk: u16) {
 }
 
 pub fn key_updown(key: i32) {
+    thread_local! {
+        static  RNG : RefCell<rand::rngs::ThreadRng>= RefCell::new(rand::thread_rng());
+    }
+
+    let gen = || RNG.with(|rng| rng.borrow_mut().gen_range(15..30));
     println!("KEY UPDOWN {key}");
     key_down(key as u16);
-    sleep(Duration::from_millis(20));
+    sleep(Duration::from_millis(gen()));
     key_up(key as u16);
-    sleep(Duration::from_millis(15));
+    sleep(Duration::from_millis(gen()));
 }

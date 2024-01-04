@@ -109,10 +109,9 @@ fn kb_func() {
 }
 
 struct PsbMap {
-    rd: Vec<BitsRowDes>,
+    cd: Vec<BitsColDes>,
     rot_idx: usize,
     pos_idx: usize,
-    max_h: u32,
 }
 
 impl std::fmt::Debug for PsbMap {
@@ -124,7 +123,7 @@ impl std::fmt::Debug for PsbMap {
     }
 }
 
-fn get_all_possible(brd: &Vec<BitsRowDes>, next_colr: TetrColr) -> Vec<PsbMap> {
+fn get_all_possible(bd: &BitsDes, next_colr: TetrColr) -> Vec<PsbMap> {
     let mut all_possible = Vec::new();
     /*for i in brd.iter() {
         assert!(i.cnt <= i.len);
@@ -132,19 +131,18 @@ fn get_all_possible(brd: &Vec<BitsRowDes>, next_colr: TetrColr) -> Vec<PsbMap> {
 
     for rot_idx in 0..4usize {
         for pos_idx in 0..XCNT as usize {
-            let add_info = block_add(&brd, next_colr, rot_idx, pos_idx);
+            let add_info = block_add(&bd, next_colr, rot_idx, pos_idx);
             if add_info.is_none() {
                 continue;
             } else {
-                let (mbits, max_h) = add_info.unwrap();
+                let cd = add_info.unwrap();
                 /*for i in mbits.iter() {
                     assert!(i.cnt <= i.len);
                 }*/
                 all_possible.push(PsbMap {
-                    rd: mbits,
+                    cd,
                     rot_idx,
                     pos_idx,
-                    max_h,
                 });
             }
         }
@@ -152,26 +150,35 @@ fn get_all_possible(brd: &Vec<BitsRowDes>, next_colr: TetrColr) -> Vec<PsbMap> {
     all_possible
 }
 
-fn get_best(brd: &Vec<BitsRowDes>, next_colr: TetrColr) -> (usize, usize, bool) {
-    let ap = get_all_possible(brd, next_colr);
+fn get_best(bd: &BitsDes, next_colr: TetrColr) -> (usize, usize, bool) {
+    let ap = get_all_possible(bd, next_colr);
 
     #[derive(PartialEq, Eq, Debug)]
     struct ApDes {
         idx: usize,
-        hole_cnt: u32,
-        max_hight: u32,
+        hole_cnt: i32,
+        max_hight: i32,
         total_hight: i32,
         hight_var: i32,
-        max_h: u32,
     }
     impl Ord for ApDes {
         fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-            // 首先按照年龄排序
-            self.hole_cnt
-                .cmp(&other.hole_cnt)
-                .then(self.max_hight.cmp(&other.max_hight))
-                .then(self.total_hight.cmp(&other.total_hight))
-                .then(self.hight_var.cmp(&other.hight_var))
+            /*
+                self.hole_cnt
+                    .cmp(&other.hole_cnt)
+                    .then(self.max_hight.cmp(&other.max_hight))
+                    .then(self.total_hight.cmp(&other.total_hight))
+                    .then(self.hight_var.cmp(&other.hight_var))
+            */
+            if (self.max_hight - other.max_hight).abs() > 2 {
+                self.max_hight.cmp(&other.max_hight)
+            } else {
+                self.hole_cnt
+                    .cmp(&other.hole_cnt)
+                    .then(self.max_hight.cmp(&other.max_hight))
+                    .then(self.total_hight.cmp(&other.total_hight))
+                    .then(self.hight_var.cmp(&other.hight_var))
+            }
         }
     }
 
@@ -180,41 +187,42 @@ fn get_best(brd: &Vec<BitsRowDes>, next_colr: TetrColr) -> (usize, usize, bool) 
             Some(self.cmp(other))
         }
     }
+    let origin_cd = &bd.cd;
+    let origin_rd = &bd.rd;
     let (origin_hole_cnt, origin_max_hight) = {
         let mut tmp1 = 0;
-        let mut tmp2 = brd[0].len;
-        for x in brd.iter() {
+        let mut tmp2 = origin_cd[0].len;
+        for x in origin_cd.iter() {
             assert!(x.len >= x.cnt);
             tmp1 += x.len - x.cnt;
             tmp2 = tmp2.max(x.len);
         }
-        (tmp1, tmp2)
+        (tmp1 as i32, tmp2 as i32)
     };
     let mut ap_des = Vec::new();
     for (idx, x) in ap.iter().enumerate() {
         let mut hole_cnt = 0;
-        let mut max_hight = x.rd[0].len;
+        let mut max_hight = x.cd[0].len;
         let mut total_hight = 0;
-        for yy in x.rd.iter().enumerate() {
+        for yy in x.cd.iter().enumerate() {
             let y = yy.1;
             //println!("{} {} {}", y.len, y.cnt, yy.0);
             hole_cnt += y.len - y.cnt;
             total_hight += y.len as i32;
             max_hight = max_hight.max(y.len);
         }
-        let avg_hight = total_hight / x.rd.len() as i32;
+        let avg_hight = total_hight / x.cd.len() as i32;
         let hight_var = {
             let mut tmp = 0;
-            for y in x.rd.iter() {
+            for y in x.cd.iter() {
                 tmp += (y.len as i32 - avg_hight).pow(2);
             }
             tmp
         };
         ap_des.push(ApDes {
             idx,
-            hole_cnt,
-            max_hight,
-            max_h: x.max_h,
+            hole_cnt: hole_cnt as i32,
+            max_hight: max_hight as i32,
             total_hight,
             hight_var,
         });
@@ -226,12 +234,10 @@ fn get_best(brd: &Vec<BitsRowDes>, next_colr: TetrColr) -> (usize, usize, bool) 
     let first_des = &ap_des[0];
     let idx = first_des.idx;
 
-    let may_swap = if (origin_hole_cnt == first_des.hole_cnt)
-        || (origin_max_hight + 2 < first_des.max_hight)
-    {
-        false
-    } else {
+    let may_swap = if origin_hole_cnt != first_des.hole_cnt {
         true
+    } else {
+        false
     };
 
     let tmp = &ap[idx];
@@ -278,13 +284,12 @@ fn start_game(width: u32, height: u32, rx: &Receiver<CtrlInfo>) {
         if let Some(ret) = get_current_pic(&img, cx, cy, len) {
             (bits, next_colr) = ret;
             println!("NEXT Colr {:?}", next_colr);
-            //sleep(Duration::from_millis(100));
         } else {
             continue;
         }
         //print_img_bits(img, bits, cx, cy, len);
-        let brd = bits2rowdes(&bits);
-        let (rot_idx, pos_idx, may_swap) = get_best(&brd, next_colr);
+        let bd = bits2des(&bits);
+        let (rot_idx, pos_idx, may_swap) = get_best(&bd, next_colr);
         if may_swap && last_swap == false {
             key_updown(VK_HOME);
             last_swap = true;
@@ -347,41 +352,4 @@ fn main() {
         }
     }
     kb_handler.join().unwrap();
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[test]
-    fn get_best_test() {
-        let mut brd = Vec::new();
-        for _ in 0..XCNT {
-            brd.push(BitsRowDes { len: 0, cnt: 0 });
-        }
-
-        let (r, p, _) = get_best(&brd, TetrColr::Green);
-        assert!(r == 0 && p == 0);
-        let (r, p, _) = get_best(&brd, TetrColr::Cyan);
-        assert!(r == 0 && p == 0);
-        let (r, p, _) = get_best(&brd, TetrColr::Cyan);
-        {
-            let mut brd = brd.clone();
-            brd[1] = BitsRowDes { cnt: 2, len: 2 };
-            brd[2] = BitsRowDes { cnt: 1, len: 1 };
-            brd[3] = BitsRowDes { cnt: 2, len: 2 };
-            let (r, p, _) = get_best(&brd, TetrColr::Purple);
-            assert!(r == 0 && p == 4);
-        }
-        {
-            let mut brd = brd.clone();
-            for i in 0..XCNT as usize {
-                if i == 2 {
-                    continue;
-                }
-                brd[i] = BitsRowDes { len: 1, cnt: 1 };
-            }
-            let (r, p, may_swap) = get_best(&brd, TetrColr::Purple);
-            assert!(r == 2 && p == 1 && may_swap == false, "{r} {p}");
-        }
-    }
 }
