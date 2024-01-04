@@ -110,6 +110,7 @@ fn kb_func() {
 
 struct PsbMap {
     cd: Vec<BitsColDes>,
+    block_max_hight: u32,
     rot_idx: usize,
     pos_idx: usize,
 }
@@ -135,7 +136,7 @@ fn get_all_possible(bd: &BitsDes, next_colr: TetrColr) -> Vec<PsbMap> {
             if add_info.is_none() {
                 continue;
             } else {
-                let cd = add_info.unwrap();
+                let (cd, block_max_hight) = add_info.unwrap();
                 /*for i in mbits.iter() {
                     assert!(i.cnt <= i.len);
                 }*/
@@ -143,6 +144,7 @@ fn get_all_possible(bd: &BitsDes, next_colr: TetrColr) -> Vec<PsbMap> {
                     cd,
                     rot_idx,
                     pos_idx,
+                    block_max_hight,
                 });
             }
         }
@@ -160,6 +162,7 @@ fn get_best(bd: &BitsDes, next_colr: TetrColr) -> (usize, usize, bool) {
         max_hight: i32,
         total_hight: i32,
         hight_var: i32,
+        block_max_hight: i32,
     }
     impl Ord for ApDes {
         fn cmp(&self, other: &Self) -> std::cmp::Ordering {
@@ -172,9 +175,12 @@ fn get_best(bd: &BitsDes, next_colr: TetrColr) -> (usize, usize, bool) {
             */
             if (self.max_hight - other.max_hight).abs() > 2 {
                 self.max_hight.cmp(&other.max_hight)
+            } else if (self.block_max_hight - other.block_max_hight).abs() > 1 {
+                self.block_max_hight.cmp(&other.block_max_hight)
             } else {
                 self.hole_cnt
                     .cmp(&other.hole_cnt)
+                    .then(self.block_max_hight.cmp(&other.block_max_hight))
                     .then(self.max_hight.cmp(&other.max_hight))
                     .then(self.total_hight.cmp(&other.total_hight))
                     .then(self.hight_var.cmp(&other.hight_var))
@@ -225,6 +231,7 @@ fn get_best(bd: &BitsDes, next_colr: TetrColr) -> (usize, usize, bool) {
             max_hight: max_hight as i32,
             total_hight,
             hight_var,
+            block_max_hight: x.block_max_hight as i32,
         });
     }
     ap_des.sort();

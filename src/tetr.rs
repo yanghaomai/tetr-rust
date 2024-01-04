@@ -193,7 +193,7 @@ pub fn block_add(
     c: TetrColr,
     rot_idx: usize,
     pos_idx: usize,
-) -> Option<Vec<BitsColDes>> {
+) -> Option<(Vec<BitsColDes>, u32)> {
     let cd = &bd.cd;
     let rd = &bd.rd;
     assert!(rot_idx < 4);
@@ -220,6 +220,7 @@ pub fn block_add(
     let mut rd = rd.clone();
     let max_h = max_h.unwrap();
     let mut remove_row = 0u32;
+    let mut block_max_hight = 0;
     for i in 0..blk_cols {
         let col_pos = pos_idx + i;
         let one_col_des = col_des.col[i];
@@ -235,12 +236,14 @@ pub fn block_add(
                 remove_row += 1;
             }
         }
+
+        block_max_hight = block_max_hight.max(cd[col_pos].len);
     }
     for i in cd.iter_mut() {
         i.len -= remove_row;
         i.cnt -= remove_row;
     }
-    Some(cd)
+    Some((cd, block_max_hight))
 }
 
 #[cfg(test)]
