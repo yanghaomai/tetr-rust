@@ -1,4 +1,5 @@
 use std::collections::btree_map::Range;
+use std::collections::HashMap;
 
 use crate::colr::*;
 use crate::constants::*;
@@ -135,13 +136,13 @@ pub fn get_current_pic(
     }
     let next_colr = next_colr.unwrap();
 
-    const NEXT_START_Y: u32 = 3;
-    const NEXT_END_Y: u32 = 17;
+    const NEXT_START_Y: f32 = 2.5;
+    const NEXT_END_Y: f32 = 17.0;
     const NEXT_START_X: u32 = XCNT + 1;
     const NEXT_END_X: u32 = NEXT_START_X + 3;
 
-    let next_start_y = cy + len * NEXT_START_Y;
-    let next_end_y = cy + len * NEXT_END_Y;
+    let next_start_y = cy + (len as f32 * NEXT_START_Y) as u32;
+    let next_end_y = cy + (len as f32 * NEXT_END_Y) as u32;
     let next_start_x = cx + len * NEXT_START_X;
     let next_end_x = cx + len * NEXT_END_X;
 
@@ -152,16 +153,16 @@ pub fn get_current_pic(
 
     let mut next_colr_vec = vec![get_color(&next_colr).unwrap()];
 
-    const X_SAMPLE: u32 = 2;
-    const Y_SAMPLE: u32 = 2;
+    const X_SAMPLE: u32 = 3;
+    const Y_SAMPLE: u32 = 3;
     let x_gap = one_x_len / (X_SAMPLE + 1);
     let y_gap = one_y_len / (Y_SAMPLE + 1);
 
     //let mut img = img.clone();
     //let lc = Rgba([255, 0, 0, 255]);
 
-    for sy in start_y.iter() {
-        let mut colr = None;
+    for (idx, sy) in start_y.iter().enumerate() {
+        let mut colr = HashMap::new();
         for i in 1..=X_SAMPLE {
             for j in 1..=Y_SAMPLE {
                 let x = next_start_x + i * x_gap;
@@ -172,23 +173,14 @@ pub fn get_current_pic(
                 if c == TetrColr::Black || c == TetrColr::Gray {
                     continue;
                 }
-                assert_ne!(c, TetrColr::Gray);
-                match colr {
-                    None => colr = Some(c),
-                    Some(ref cc) => {
-                        assert_eq!(*cc, c);
-                    }
-                }
+                let entry = colr.entry(c).or_insert(0);
+                *entry += 1;
             }
         }
-        next_colr_vec.push(colr.unwrap());
+        let mut colr: Vec<(i32, TetrColr)> = colr.iter().map(|x| (*x.1, *x.0)).collect();
+        colr.sort();
+        next_colr_vec.push(colr[colr.len() - 1].1);
     }
-
-    /*for i in start_y {
-        draw_x_line(&mut img, next_start_x..next_end_x, i, lc);
-    }
-    draw_x_line(&mut img, next_start_x..next_end_x, next_end_y, lc);
-    print_img(&img);*/
 
     Some((bits, next_colr_vec))
 }

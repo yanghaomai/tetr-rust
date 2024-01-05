@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::colr::*;
+use crate::{colr::*, constants::YCNT};
 use lazy_static::lazy_static;
 
 #[derive(Debug)]
@@ -120,6 +120,7 @@ pub fn get_start_pos(c: TetrColr, rot_idx: usize) -> i32 {
     a.pos[rot_idx]
 }
 
+#[derive(Debug, Clone)]
 pub struct BitsDes {
     pub rd: Vec<BitsRowDes>,
     pub cd: Vec<BitsColDes>,
@@ -227,6 +228,9 @@ pub fn block_add(
         //println!("BEFORE {:?}", mbits[col_pos]);
         cd[col_pos].cnt += one_col_des.1;
         cd[col_pos].len = max_h + one_col_des.0 + one_col_des.1;
+        if cd[col_pos].len >= YCNT {
+            return None;
+        }
         //println!("AFTER {:?}", mbits[col_pos]);
         assert!(cd[col_pos].len >= cd[col_pos].cnt);
         for j in (max_h + one_col_des.0) as usize..cd[col_pos].len as usize {
@@ -243,6 +247,7 @@ pub fn block_add(
         i.len -= remove_rows.len() as u32;
         i.cnt -= remove_rows.len() as u32;
     }
+    block_max_hight -= remove_rows.len() as u32;
     remove_rows.sort();
     remove_rows.reverse();
     for i in 1..remove_rows.len() {

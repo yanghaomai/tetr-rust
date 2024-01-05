@@ -9,6 +9,7 @@ use std::cmp::{max, min, Reverse};
 use std::collections::BinaryHeap;
 use std::ffi::{c_char, CStr};
 use std::sync::mpsc::{self, Receiver};
+use std::sync::{Arc, Mutex};
 use std::thread::sleep;
 use std::time::Instant;
 use std::{mem, thread};
@@ -85,6 +86,8 @@ extern "system" fn keyboard_hook_callback(
     unsafe { CallNextHookEx(ptr::null_mut(), n_code, w_param, l_param) }
 }
 
+static quit_flag: Mutex<bool> = Mutex::new(false);
+
 fn kb_func() {
     let hook_handle;
     unsafe {
@@ -96,6 +99,13 @@ fn kb_func() {
     unsafe {
         let mut msg: MSG = mem::zeroed();
         loop {
+            {
+                let qf = quit_flag.lock().unwrap();
+                if *qf {
+                    break;
+                }
+            }
+
             if GetMessageW(&mut msg, ptr::null_mut(), 0, 0) == 0 {
                 break;
             } else {
@@ -109,51 +119,50 @@ fn kb_func() {
     println!("KBHandler exit");
 }
 
+#[derive(Debug)]
 struct PsbMap {
-    cd: Vec<BitsColDes>,
+    bd: BitsDes,
+    ops: Vec<(usize, usize)>,
     block_max_hight: u32,
-    rot_idx: usize,
-    pos_idx: usize,
 }
 
-impl std::fmt::Debug for PsbMap {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("PsbMap")
-            .field("rot", &self.rot_idx)
-            .field("pos", &self.pos_idx)
-            .finish()
+fn get_all_possible(bd: &BitsDes, next_colr: &[TetrColr]) -> Vec<PsbMap> {
+    let mut ret = Vec::new();
+
+    let ap;
+    if next_colr.len() == 1 {
+        ap = vec![PsbMap {
+            bd: bd.clone(),
+            ops: Vec::new(),
+            block_max_hight: 0,
+        }];
+    } else {
+        ap = get_all_possible(bd, &next_colr[..next_colr.len() - 1]);
     }
-}
 
-fn get_all_possible(bd: &BitsDes, next_colr: TetrColr) -> Vec<PsbMap> {
-    let mut all_possible = Vec::new();
-    /*for i in brd.iter() {
-        assert!(i.cnt <= i.len);
-    }*/
-
-    for rot_idx in 0..4usize {
-        for pos_idx in 0..XCNT as usize {
-            let add_info = block_add(&bd, next_colr, rot_idx, pos_idx);
-            if add_info.is_none() {
-                continue;
-            } else {
-                let (bd, block_max_hight) = add_info.unwrap();
-                /*for i in mbits.iter() {
-                    assert!(i.cnt <= i.len);
-                }*/
-                all_possible.push(PsbMap {
-                    cd: bd.cd,
-                    rot_idx,
-                    pos_idx,
-                    block_max_hight,
-                });
+    for x in ap.iter() {
+        for rot_idx in 0..4usize {
+            for pos_idx in 0..XCNT as usize {
+                let add_info = block_add(&x.bd, next_colr[next_colr.len() - 1], rot_idx, pos_idx);
+                if add_info.is_none() {
+                    continue;
+                } else {
+                    let mut ops = x.ops.clone();
+                    ops.push((rot_idx, pos_idx));
+                    let add_info = add_info.unwrap();
+                    ret.push(PsbMap {
+                        bd: add_info.0,
+                        ops,
+                        block_max_hight: x.block_max_hight.max(add_info.1),
+                    });
+                }
             }
         }
     }
-    all_possible
+    ret
 }
 
-fn get_best(bd: &BitsDes, next_colr: TetrColr) -> (usize, usize, bool) {
+fn get_best(bd: &BitsDes, next_colr: &[TetrColr]) -> (Vec<(usize, usize)>, bool) {
     let ap = get_all_possible(bd, next_colr);
 
     #[derive(PartialEq, Eq, Debug)]
@@ -174,14 +183,14 @@ fn get_best(bd: &BitsDes, next_colr: TetrColr) -> (usize, usize, bool) {
                     .then(self.total_hight.cmp(&other.total_hight))
                     .then(self.hight_var.cmp(&other.hight_var))
             */
-            if (self.max_hight - other.max_hight).abs() > 2 {
+            /*if (self.max_hight - other.max_hight).abs() > 1 {
                 self.max_hight.cmp(&other.max_hight)
-            } else if (self.block_max_hight - other.block_max_hight).abs() > 1 {
+            } else */
+            if (self.block_max_hight - other.block_max_hight).abs() > 2 {
                 self.block_max_hight.cmp(&other.block_max_hight)
             } else {
                 self.hole_cnt
                     .cmp(&other.hole_cnt)
-                    .then(self.block_max_hight.cmp(&other.block_max_hight))
                     .then(self.max_hight.cmp(&other.max_hight))
                     .then(self.total_hight.cmp(&other.total_hight))
                     .then(self.hight_var.cmp(&other.hight_var))
@@ -211,19 +220,19 @@ fn get_best(bd: &BitsDes, next_colr: TetrColr) -> (usize, usize, bool) {
     let mut ap_des = BinaryHeap::new();
     for (idx, x) in ap.iter().enumerate() {
         let mut hole_cnt = 0;
-        let mut max_hight = x.cd[0].len;
+        let mut max_hight = x.bd.cd[0].len;
         let mut total_hight = 0;
-        for yy in x.cd.iter().enumerate() {
+        for yy in x.bd.cd.iter().enumerate() {
             let y = yy.1;
             //println!("{} {} {}", y.len, y.cnt, yy.0);
             hole_cnt += y.len - y.cnt;
             total_hight += y.len as i32;
             max_hight = max_hight.max(y.len);
         }
-        let avg_hight = total_hight / x.cd.len() as i32;
+        let avg_hight = total_hight / x.bd.cd.len() as i32;
         let hight_var = {
             let mut tmp = 0;
-            for y in x.cd.iter() {
+            for y in x.bd.cd.iter() {
                 tmp += (y.len as i32 - avg_hight).pow(2);
             }
             tmp
@@ -243,14 +252,19 @@ fn get_best(bd: &BitsDes, next_colr: TetrColr) -> (usize, usize, bool) {
     let first_des = &ap_des.peek().unwrap().0;
     let idx = first_des.idx;
 
-    let may_swap = if origin_hole_cnt != first_des.hole_cnt {
+    let may_swap = if origin_hole_cnt < first_des.hole_cnt {
+        //println!("ORIG {} NOW {}", origin_hole_cnt, first_des.hole_cnt);
         true
     } else {
         false
     };
 
-    let tmp = &ap[idx];
-    (tmp.rot_idx, tmp.pos_idx, may_swap)
+    //println!("{:?}", first_des);
+    //println!("{:#?}", ap[idx]);
+
+    let mut ops = ap[idx].ops.clone();
+    //ops.reverse();
+    (ops, may_swap)
 }
 
 fn ascii_to_virtual_key(ascii_char: u8) -> i32 {
@@ -298,7 +312,7 @@ fn start_game(width: u32, height: u32, rx: &Receiver<CtrlInfo>) {
         }
         //print_img_bits(img, bits, cx, cy, len);
         let bd = bits2des(&bits);
-        let (rot_idx, pos_idx, may_swap) = get_best(&bd, next_colrs[0]);
+        let (ops, may_swap) = get_best(&bd, &next_colrs[0..2]);
         if may_swap && last_swap == false {
             key_updown(VK_HOME);
             last_swap = true;
@@ -306,30 +320,30 @@ fn start_game(width: u32, height: u32, rx: &Receiver<CtrlInfo>) {
         } else {
             last_swap = false;
         }
-        println!("HHH {rot_idx} {pos_idx}");
-        //continue;
-        // do rot
-        match rot_idx {
-            0 => (),
-            1 => {
-                key_updown(VK_DOWN);
+
+        for (idx, (rot_idx, pos_idx)) in ops.iter().enumerate() {
+            println!("HHH {rot_idx} {pos_idx}");
+            match rot_idx {
+                0 => (),
+                1 => {
+                    key_updown(VK_DOWN);
+                }
+                2 => {
+                    key_updown(VK_END);
+                }
+                3 => {
+                    key_updown(VK_UP);
+                }
+                _ => panic!(),
             }
-            2 => {
-                key_updown(VK_END);
+            let start_pos = get_start_pos(next_colrs[idx], *rot_idx);
+            let right_move = *pos_idx as i32 - start_pos;
+            for _ in 0..right_move.abs() {
+                key_updown(if right_move > 0 { VK_RIGHT } else { VK_LEFT });
             }
-            3 => {
-                key_updown(VK_UP);
-            }
-            _ => panic!(),
+            key_updown(VK_SPACE);
         }
-        let start_pos = get_start_pos(next_colrs[0], rot_idx);
-        let right_move = pos_idx as i32 - start_pos;
-        for _ in 0..right_move.abs() {
-            key_updown(if right_move > 0 { VK_RIGHT } else { VK_LEFT });
-        }
-        //sleep(Duration::from_secs(5));
-        key_updown(VK_SPACE);
-        //println!("{:?} done", next_colr);
+        sleep(Duration::from_millis(80));
     }
     println!("QUIT GAME");
 }
@@ -361,6 +375,10 @@ fn main() {
             }
         }
     }
+    {
+        let mut qf = quit_flag.lock().unwrap();
+        *qf = true;
+    }
     kb_handler.join().unwrap();
 }
 
@@ -378,7 +396,7 @@ mod tests {
         for _ in 0..YCNT {
             rd.push(BitsRowDes { cnt: 0 });
         }
-        let (rot_idx, pos_idx, may_hold) = get_best(&BitsDes { cd, rd }, TetrColr::Orange);
-        assert!(false, "{rot_idx} {pos_idx} {may_hold}");
+        let (ops, may_hold) = get_best(&BitsDes { cd, rd }, &[TetrColr::Green, TetrColr::Orange]);
+        assert!(false, "{:?} {may_hold}", ops);
     }
 }

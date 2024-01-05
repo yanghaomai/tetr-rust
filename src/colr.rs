@@ -1,7 +1,7 @@
 use lazy_static::lazy_static;
 use screenshots::image::Rgba;
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy, Hash, PartialOrd, Ord)]
 pub enum TetrColr {
     Purple,
     Red,
