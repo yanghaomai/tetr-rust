@@ -3,8 +3,10 @@
 #![allow(unused_variables)]
 
 use minifb::{Key, Window, WindowOptions};
+use rand::Rng;
 use screenshots::image::{ImageBuffer, Pixel, Rgba, RgbaImage};
 use screenshots::Screen;
+use std::cell::RefCell;
 use std::cmp::{max, min, Reverse};
 use std::collections::BinaryHeap;
 use std::ffi::{c_char, CStr};
@@ -173,6 +175,7 @@ fn get_best(bd: &BitsDes, next_colr: &[TetrColr]) -> (Vec<(usize, usize)>, bool)
         total_hight: i32,
         hight_var: i32,
         block_max_hight: i32,
+        round_len: i32,
     }
     impl Ord for ApDes {
         fn cmp(&self, other: &Self) -> std::cmp::Ordering {
@@ -186,13 +189,14 @@ fn get_best(bd: &BitsDes, next_colr: &[TetrColr]) -> (Vec<(usize, usize)>, bool)
             /*if (self.max_hight - other.max_hight).abs() > 1 {
                 self.max_hight.cmp(&other.max_hight)
             } else */
-            if (self.block_max_hight - other.block_max_hight).abs() > 2 {
+            if (self.block_max_hight - other.block_max_hight).abs() > 1 {
                 self.block_max_hight.cmp(&other.block_max_hight)
             } else {
                 self.hole_cnt
                     .cmp(&other.hole_cnt)
                     .then(self.block_max_hight.cmp(&other.block_max_hight))
                     .then(self.max_hight.cmp(&other.max_hight))
+                    .then(self.round_len.cmp(&other.round_len))
                     .then(self.total_hight.cmp(&other.total_hight))
                     .then(self.hight_var.cmp(&other.hight_var))
             }
@@ -230,6 +234,10 @@ fn get_best(bd: &BitsDes, next_colr: &[TetrColr]) -> (Vec<(usize, usize)>, bool)
             total_hight += y.len as i32;
             max_hight = max_hight.max(y.len);
         }
+        let mut round_len = 0;
+        for i in 1..x.bd.cd.len() {
+            round_len += (x.bd.cd[i].len as i32 - x.bd.cd[i - 1].len as i32).abs();
+        }
         let avg_hight = total_hight / x.bd.cd.len() as i32;
         let hight_var = {
             let mut tmp = 0;
@@ -245,6 +253,7 @@ fn get_best(bd: &BitsDes, next_colr: &[TetrColr]) -> (Vec<(usize, usize)>, bool)
             total_hight,
             hight_var,
             block_max_hight: x.block_max_hight as i32,
+            round_len,
         }));
     }
     /*for i in ap_des.iter() {
@@ -293,6 +302,11 @@ fn start_game(width: u32, height: u32, rx: &Receiver<CtrlInfo>) {
 
     // get len
     let ((cx, cy), len) = get_len(&img, px as i32, py as i32);
+
+    thread_local! {
+        static  RNG : RefCell<rand::rngs::ThreadRng>= RefCell::new(rand::thread_rng());
+    }
+    let gen = || RNG.with(|rng| rng.borrow_mut().gen_range(0..50));
 
     let mut last_swap = false;
     loop {
@@ -343,8 +357,8 @@ fn start_game(width: u32, height: u32, rx: &Receiver<CtrlInfo>) {
                 key_updown(if right_move > 0 { VK_RIGHT } else { VK_LEFT });
             }
             key_updown(VK_SPACE);
+            sleep(Duration::from_millis(gen()));
         }
-        sleep(Duration::from_millis(80));
     }
     println!("QUIT GAME");
 }
