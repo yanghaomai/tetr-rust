@@ -191,6 +191,7 @@ fn get_best(bd: &BitsDes, next_colr: &[TetrColr]) -> (Vec<(usize, usize)>, bool)
             } else {
                 self.hole_cnt
                     .cmp(&other.hole_cnt)
+                    .then(self.block_max_hight.cmp(&other.block_max_hight))
                     .then(self.max_hight.cmp(&other.max_hight))
                     .then(self.total_hight.cmp(&other.total_hight))
                     .then(self.hight_var.cmp(&other.hight_var))
