@@ -12,6 +12,7 @@ pub struct ColDes {
 pub struct TetrBlk {
     pos: [i32; 4],
     rots: Vec<ColDes>,
+    rot_ids: Vec<i32>,
 }
 
 fn get_clock_rot90(bits: &Vec<Vec<i32>>) -> Vec<Vec<i32>> {
@@ -62,27 +63,34 @@ lazy_static! {
         shapes.push((
             TetrColr::Purple,
             (vec![3, 4, 3, 3], vec![vec![0, 1, 0], vec![1, 1, 1]]),
+            vec![0, 1, 2, 3],
         ));
         shapes.push((
             TetrColr::Red,
             (vec![3, 4, 3, 3], vec![vec![1, 1, 0], vec![0, 1, 1]]),
+            vec![0, 1],
         ));
-        shapes.push((TetrColr::Cyan, (vec![3, 5, 3, 5], vec![vec![1, 1, 1, 1]])));
+        shapes.push((TetrColr::Cyan, (vec![3, 5, 3, 5], vec![vec![1, 1, 1, 1]]),
+        vec![0, 1],));
         shapes.push((
             TetrColr::Blue,
             (vec![3, 4, 3, 3], vec![vec![1, 0, 0], vec![1, 1, 1]]),
+            vec![0, 1,2,3],
         ));
         shapes.push((
             TetrColr::Green,
             (vec![3, 4, 3, 3], vec![vec![0, 1, 1], vec![1, 1, 0]]),
+            vec![0, 1],
         ));
         shapes.push((
             TetrColr::Orange,
             (vec![3, 4, 3, 3], vec![vec![0, 0, 1], vec![1, 1, 1]]),
+            vec![0, 1,2,3],
         ));
         shapes.push((
             TetrColr::Yellow,
             (vec![4, 4, 4, 4], vec![vec![1, 1], vec![1, 1]]),
+            vec![0],
         ));
 
         let mut mp = HashMap::new();
@@ -104,6 +112,7 @@ lazy_static! {
                 TetrBlk {
                     rots,
                     pos: pos_vec.unwrap(),
+                    rot_ids: s.2.clone(),
                 },
             );
         }
@@ -120,6 +129,11 @@ pub fn get_start_pos(c: TetrColr, rot_idx: usize) -> i32 {
     a.pos[rot_idx]
 }
 
+pub fn get_rot_ids(c: TetrColr) -> Vec<usize> {
+    let a = COLR2BLK.get(&c).unwrap();
+    a.rot_ids.iter().map(|x| *x as usize).collect()
+}
+
 #[derive(Debug, Clone)]
 pub struct BitsDes {
     pub rd: Vec<BitsRowDes>,
@@ -130,6 +144,7 @@ pub struct BitsDes {
 pub struct BitsColDes {
     pub len: u32,
     pub cnt: u32,
+    pub first_hole: i32,
 }
 
 #[derive(Clone, Debug)]
@@ -169,6 +184,7 @@ fn bits2coldes(bits: &Vec<Vec<bool>>) -> Vec<BitsColDes> {
     let r = bits.len();
     for i in 0..c {
         let mut first_fill = None;
+        let mut first_hole = None;
         let mut fill_cnt = 0;
         for j in 0..r {
             if bits[j][i] {
@@ -176,12 +192,20 @@ fn bits2coldes(bits: &Vec<Vec<bool>>) -> Vec<BitsColDes> {
                     first_fill = Some(j);
                 }
                 fill_cnt += 1;
+            } else {
+                if first_fill != None && first_hole == None {
+                    first_hole = Some(j);
+                }
             }
         }
         ret.push(BitsColDes {
             len: match first_fill {
                 None => 0,
                 Some(x) => (r - x) as u32,
+            },
+            first_hole: match first_hole {
+                None => 0,
+                Some(x) => (r - x) as i32,
             },
             cnt: fill_cnt,
         });
@@ -194,7 +218,7 @@ pub fn block_add(
     c: TetrColr,
     rot_idx: usize,
     pos_idx: usize,
-) -> Option<(BitsDes, u32)> {
+) -> Option<(BitsDes, u32, usize)> {
     let cd = &bd.cd;
     let rd = &bd.rd;
     assert!(rot_idx < 4);
@@ -253,12 +277,12 @@ pub fn block_add(
     for i in 1..remove_rows.len() {
         assert_ne!(remove_rows[i], remove_rows[i - 1]);
     }
-    for i in remove_rows {
-        rd.remove(i);
+    for i in remove_rows.iter() {
+        rd.remove(*i);
         rd.push(BitsRowDes { cnt: 0 });
     }
 
-    Some((BitsDes { rd, cd }, block_max_hight))
+    Some((BitsDes { rd, cd }, block_max_hight, remove_rows.len()))
 }
 
 #[cfg(test)]

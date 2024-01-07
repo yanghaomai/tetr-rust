@@ -12,7 +12,7 @@ use winapi::{
         winnt::{KEY_ENUMERATE_SUB_KEYS, SHORT},
         winuser::{
             self, keybd_event, GetCursorPos, SendInput, VkKeyScanA, INPUT, INPUT_KEYBOARD,
-            KEYEVENTF_KEYUP, VK_LEFT,
+            KEYEVENTF_KEYUP, VK_LEFT, VK_SPACE,
         },
     },
 };
@@ -111,15 +111,20 @@ fn key_up(vk: u16) {
     }
 }
 
-pub fn key_updown(key: i32) {
+pub fn key_updown(key: i32, fm: bool) {
     thread_local! {
         static  RNG : RefCell<rand::rngs::ThreadRng>= RefCell::new(rand::thread_rng());
     }
 
-    let gen = || RNG.with(|rng| rng.borrow_mut().gen_range(16..25));
+    let gen1 = || RNG.with(|rng| rng.borrow_mut().gen_range(25..26));
+    let gen2 = || RNG.with(|rng| rng.borrow_mut().gen_range(25..26));
+
+    let gen3 = || RNG.with(|rng| rng.borrow_mut().gen_range(30..35));
+    let gen4 = || RNG.with(|rng| rng.borrow_mut().gen_range(30..40));
+
     //println!("KEY UPDOWN {key}");
     key_down(key as u16);
-    sleep(Duration::from_millis(gen()));
+    sleep(Duration::from_millis(if fm { gen1() } else { gen3() }));
     key_up(key as u16);
-    sleep(Duration::from_millis(gen()));
+    sleep(Duration::from_millis(if fm { gen2() } else { gen4() }));
 }

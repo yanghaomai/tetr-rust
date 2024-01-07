@@ -30,10 +30,11 @@ fn get_block_xy_len(img: &RgbaImage, px: i32, py: i32) -> (u32, u32, u32) {
     let b = xy_max[1] - xy_min[1];
 
     //println!("HHH{a} {b}");
-    if (a - b).abs() >= 4 {
+    if (a - b).abs() >= 3 {
         println!("WRONG abs");
         print_img(&img);
     }
+    //print_img(&img);
     assert!((a - b).abs() < 4, "{} {a} {b}", (a - b).abs());
     let mx = (xy_min[0] + xy_max[0]) as u32 / 2;
     let my = (xy_min[1] + xy_max[1]) as u32 / 2;
@@ -64,6 +65,16 @@ pub fn get_len(img: &RgbaImage, px: i32, py: i32) -> ((u32, u32), u32) {
                 *img.get_pixel_mut(mx - 1, my) = wp;
                 *img.get_pixel_mut(mx, my - 1) = wp;
                 *img.get_pixel_mut(mx - 1, my - 1) = wp;
+            }
+        }
+        print_img(&img);
+    }
+    if false {
+        let mut img = img.clone();
+        let colr = Rgba([255, 0, 255, 255]);
+        for i in 0..XCNT {
+            for j in 0..YCNT {
+                draw_rect(&mut img, mx + len * i, my + len * j, colr);
             }
         }
         print_img(&img);
@@ -124,6 +135,9 @@ pub fn get_current_pic(
                     top_line_colr_cnt += 1;
                 }
             } else {
+                if top_line_colr_cnt != 4 {
+                    return None;
+                }
                 if is_black(pi) == false {
                     bits[i as usize][j as usize] = true;
                 }
