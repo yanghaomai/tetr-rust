@@ -195,7 +195,7 @@ fn get_best(bd: &BitsDes, next_colr: &[TetrColr]) -> (Vec<(usize, usize)>, bool)
                 self.hole_cnt
                     .cmp(&other.hole_cnt)
                     .then(self.block_max_hight.cmp(&other.block_max_hight))
-                    .then(self.max_hight.cmp(&other.max_hight))
+                    //.then(self.max_hight.cmp(&other.max_hight))
                     .then(self.round_len.cmp(&other.round_len))
                     .then(self.total_hight.cmp(&other.total_hight))
                     .then(self.hight_var.cmp(&other.hight_var))
@@ -272,7 +272,7 @@ fn get_best(bd: &BitsDes, next_colr: &[TetrColr]) -> (Vec<(usize, usize)>, bool)
     //println!("{:?}", first_des);
     //println!("{:#?}", ap[idx]);
 
-    let mut ops = ap[idx].ops.clone();
+    let ops = ap[idx].ops.clone();
     //ops.reverse();
     (ops, may_swap)
 }
@@ -327,7 +327,7 @@ fn start_game(width: u32, height: u32, rx: &Receiver<CtrlInfo>) {
         }
         //print_img_bits(img, bits, cx, cy, len);
         let bd = bits2des(&bits);
-        let (ops, may_swap) = get_best(&bd, &next_colrs[0..2]);
+        let (ops, may_swap) = get_best(&bd, &next_colrs[0..3]);
         if may_swap && last_swap == false {
             key_updown(VK_HOME);
             last_swap = true;
@@ -357,8 +357,8 @@ fn start_game(width: u32, height: u32, rx: &Receiver<CtrlInfo>) {
                 key_updown(if right_move > 0 { VK_RIGHT } else { VK_LEFT });
             }
             key_updown(VK_SPACE);
-            sleep(Duration::from_millis(gen()));
         }
+        sleep(Duration::from_millis(60));
     }
     println!("QUIT GAME");
 }
